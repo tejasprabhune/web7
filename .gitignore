@@ -1,2 +1,5 @@
+.env
 mcp_servers/
 web7/search/.env
+servers/
+uv.lock
