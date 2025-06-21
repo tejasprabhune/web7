@@ -6,5 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.25.0",
-    "asyncio-compat>=0.1.0"
+    "asyncio-compat>=0.1.0",
+    "fastembed>=0.7.1",
+    "qdrant-client>=1.14.3",
 ]
