@@ -3,3 +3,5 @@ mcp_servers/
 web7/search/.env
 servers/
 uv.lock
+*__pycache__
+*egg-info
