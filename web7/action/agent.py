@@ -4,14 +4,17 @@ import ast
 import os
 from dotenv import load_dotenv
 
+from ..llm.groq import groq_complete, init_groq
+from ..api import WorkflowSession, StepStatus
 from .interface_search import detach_tools, mcp_search
 
 load_dotenv()
 
 client = AsyncLetta(token=os.getenv("LETTA_API_KEY"))
+groq = init_groq()
 
 
-async def generate_task_list(agent_id, user_input):
+async def generate_task_list(agent_id, user_input) -> list[str]:
     await detach_tools(agent_id)
     stream = client.agents.messages.create_stream(
         agent_id=agent_id,
@@ -56,12 +59,13 @@ async def generate_task_list(agent_id, user_input):
     return ast.literal_eval(task_list)
 
 
-async def accomplish_task(agent_id, task, task_number):
-    await detach_tools(agent_id)
-    response = await mcp_search(agent_id, task, k=3)
+async def accomplish_task(session: WorkflowSession, task, task_number):
+    await detach_tools(session.agent_id)
+    response = await mcp_search(session.agent_id, task, k=1)
     print(response)
+    mcp_server_img_url = response["mcp_server_img_url"]
     stream = client.agents.messages.create_stream(
-        agent_id=agent_id,
+        agent_id=session.agent_id,
         messages=[
             {
                 "role": "user",
@@ -105,10 +109,10 @@ Now, please proceed with the task using the provided tools and following the ins
         print(message)
 
     if f"task {task_number}" in [
-        b.label for b in await client.agents.blocks.list(agent_id=agent_id)
+        b.label for b in await client.agents.blocks.list(agent_id=session.agent_id)
     ]:
         await client.agents.blocks.modify(
-            agent_id=agent_id,
+            agent_id=session.agent_id,
             block_label=f"task {task_number}",
             value=str(messages),
         )
@@ -120,7 +124,31 @@ Now, please proceed with the task using the provided tools and following the ins
             limit=40000,
         )
         print("new block created")
-        await client.agents.blocks.attach(agent_id=agent_id, block_id=block.id)
+        await client.agents.blocks.attach(agent_id=session.agent_id, block_id=block.id)
+
+    system_prompt = """
+    You will be given a thought process or results from an AI model. Your task is to summarize this thought process in five words or less. Here is the thought process:
+
+    <thought_process>
+    {{THOUGHT_PROCESS}}
+    </thought_process>
+
+    Carefully analyze the provided thought process. Identify the key actions, decisions, or steps that the AI model took to complete its task. 
+
+    Create a concise summary that captures the essence of the thought process in no more than 10 words. This summary should give a clear, high-level understanding of what the AI did.
+
+    Provide your ten-word (or less) summary. Do not include any additional explanation or justification.
+    """
+    user_prompt = ""
+    details = await groq_complete(groq, system_prompt, user_prompt)
+
+    session.add_step(
+        action=task,
+        mcp_server="",
+        mcp_server_img_url=mcp_server_img_url,
+        status=StepStatus.UPDATED,
+        details=
+    )
 
 
 async def main():

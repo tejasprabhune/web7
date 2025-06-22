@@ -69,6 +69,7 @@ class Step:
     step_id: str
     action: str
     mcp_server: str
+    mcp_server_img_url: str
     status: StepStatus
     timestamp: str
     details: str
@@ -82,6 +83,7 @@ class Step:
             "step_id": self.step_id,
             "action": self.action,
             "mcp_server": self.mcp_server,
+            "mcp_server_img_url": self.mcp_server_img_url,
             "status": self.status.name.lower(),
             "timestamp": self.timestamp,
             "details": self.details,
@@ -105,6 +107,7 @@ class WorkflowSession:
         self,
         action: str,
         mcp_server: str,
+        mcp_server_img_url: str,
         status: StepStatus = StepStatus.NOT_STARTED,
         details: str = None,
     ):
@@ -112,6 +115,7 @@ class WorkflowSession:
             step_id=f"step_{len(self.steps) + 1}",
             action=action,
             mcp_server=mcp_server,
+            mcp_server_img_url=mcp_server_img_url,
             status=status,
             details=details,
             timestamp=datetime.now().isoformat(),
@@ -230,27 +234,24 @@ async def get_workflow_status(agent_id: str):
     return session.to_dict()
 
 
-async def process_workflow(session_id: str):
+async def process_workflow(agent_id: str):
     """Main workflow processing logic - customize this for your LLM"""
-    session = workflow_sessions[session_id]
+    session = workflow_sessions[agent_id]
 
     try:
-        session.status = "processing"
+        session.status = WorkflowStatus.IN_PROGRESS
 
         # Define your workflow steps
-        workflow_steps = await generate_task_list(session.agent_id, session.query)
+        workflow_steps: list[str] = await generate_task_list(
+            session.agent_id, session.query
+        )
+
+        print("workflow steps:", workflow_steps)
 
         total_steps = len(workflow_steps)
 
         for i, step_config in enumerate(workflow_steps):
-            response = await accomplish_task(session.agent_id, step_config, i)
-
-            step = session.add_step(
-                action=step_config,
-                mcp_server="",
-                status=StepStatus.STARTED,
-                details=response,
-            )
+            response = await accomplish_task(session, step_config, i)
 
             session.current_step = i
             session.set_progress(int((i / total_steps) * 100))

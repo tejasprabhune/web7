@@ -5,7 +5,7 @@ import os
 import requests
 from typing import Self
 
-from letta_client import AsyncLetta, StreamableHttpServerConfig, Tool
+from letta_client import AsyncLetta, StreamableHttpServerConfig, Tool, SseServerConfig
 
 
 from mcp.server.fastmcp import FastMCP
@@ -33,6 +33,7 @@ class McpServer:
     name: str
     transport: str
     url: str
+    img_url: str
     authentication: str
 
 
@@ -97,15 +98,17 @@ async def attach_tools(agent_id: str, mcp_server_name: str):
 
 async def add_mcp_server(mcp_server_name: str, mcp_server_url: str):
     current_mcp_servers = await client.tools.list_mcp_servers()
+    print(current_mcp_servers)
 
     if mcp_server_name not in current_mcp_servers:
         print("adding mcp server:", mcp_server_name)
-        await client.tools.add_mcp_server(
-            request=StreamableHttpServerConfig(
+        response = await client.tools.add_mcp_server(
+            request=SseServerConfig(
                 server_name=mcp_server_name,
                 server_url=mcp_server_url,
             )
         )
+        print(response)
 
 
 async def _mcp_search(agent_id: str, query: str, k: int) -> int:
@@ -128,9 +131,13 @@ async def _mcp_search(agent_id: str, query: str, k: int) -> int:
 
     await detach_tools(agent_id)
 
+    mcp_server_img_url = ""
     for server in mcp_response.servers:
         await add_mcp_server(server.name, server.url)
         await attach_tools(agent_id, server.name)
+        mcp_server_img_url = server.img_url
+
+    return mcp_server_img_url
 
 
 @mcp.tool()
@@ -138,9 +145,9 @@ async def mcp_search(agent_id: str, query: str, k: int) -> int:
     print("agent_id:", agent_id)
     print("query:", query)
     print("k:", k)
-    await _mcp_search(agent_id, query, k)
+    mcp_server_img_url = await _mcp_search(agent_id, query, k)
 
-    return {"status": "success"}
+    return {"status": "success", "mcp_server_img_url": mcp_server_img_url}
 
 
 async def main():
