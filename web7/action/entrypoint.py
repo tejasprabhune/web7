@@ -21,7 +21,7 @@ client = Letta(token=os.getenv("LETTA_API_KEY"))
 # Use the "everything" mcp server:
 # https://github.com/modelcontextprotocol/servers/tree/main/src/everything
 mcp_server_name = "web7_notion"
-mcp_tool_name = "echo"
+mcp_tool_name = "NOTION_SEARCH_NOTION_PAGE"
 
 # List all McpTool belonging to the "everything" mcp server.
 mcp_tools = client.tools.list_mcp_tools_by_server(
