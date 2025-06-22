@@ -24,7 +24,7 @@ if __name__ == "__main__":
     
     # Run the server with import string for reload support
     uvicorn.run(
-        "web7.search.database_server.api:app",
+        "web7.api:app",
         host=host,
         port=port,
         reload=True,
