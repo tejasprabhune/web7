@@ -36,7 +36,7 @@ class QdrantVectorDb:
                         models.FieldCondition(
                             key="name",
                             match=models.MatchAny(
-                                any=["Gmail", "Notion", "Googlecalendar", "Slack"]
+                                any=["Gmail", "Notion", "Slack","Googlemeet"]
                             ),
                         )
                     ]
