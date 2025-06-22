@@ -27,9 +27,6 @@ mcp_tool_name = "NOTION_SEARCH_NOTION_PAGE"
 mcp_tools = client.tools.list_mcp_tools_by_server(
     mcp_server_name=mcp_server_name,
 )
-for tool in mcp_tools:
-    pprint(tool.name)
-    print()
 
 mcp_tool = client.tools.add_mcp_tool(
     mcp_server_name=mcp_server_name, mcp_tool_name=mcp_tool_name
@@ -44,6 +41,7 @@ for tool in mcp_tools:
     pprint(tool.name)
     print()
 
+<<<<<<< HEAD
 # mcp_tool = client.tools.add_mcp_tool(
 #     mcp_server_name=mcp_server_name, mcp_tool_name=mcp_tool_name
 # )
@@ -58,3 +56,17 @@ for tool in mcp_tools:
 # )
 # for message in response.messages:
 #     print(message)
+=======
+# Ask the agent to call the tool.
+response = client.agents.messages.create(
+    agent_id=agent_id,
+    messages=[
+        {"role": "user", "content": "Search all notion pages for hi"},
+    ],
+)
+for message in response.messages:
+    if message.message_type == "tool_return_message" and message.tool_return:
+        pprint(message.tool_return)
+    else:
+        pprint(message)
+>>>>>>> 3c212c8 (Add search MCP)
