@@ -7,7 +7,7 @@ from enum import Enum
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import Self
-from ..qdrant_vector_search.qdrant_client import QdrantVectorDb
+from .search.qdrant_vector_search.qdrant_client import QdrantVectorDb
 from .models import (
     SearchQuery,
     SearchResponse,
@@ -244,8 +244,11 @@ async def process_workflow(session_id: str):
 
         for i, step_config in enumerate(workflow_steps):
             # Add step to session
+            
+
+
             step = session.add_step(
-                action=step_config["action"],
+                action=step_config.action,
                 mcp_server=step_config["mcp_server"],
                 status="started",
                 details={
@@ -500,10 +503,11 @@ async def search_vectors_get(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-
-if __name__ == "__main__":
-    # Run the FastAPI server
+async def main():
+    await init_letta()
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-
     uvicorn.run("api:app", host=host, port=port, reload=True, log_level="info")
+
+if __name__ == "__main__":
+    asyncio.run(main())
