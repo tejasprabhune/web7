@@ -30,14 +30,14 @@ class QdrantVectorDb:
                 query=query_vector,
                 limit=k,
                 with_payload=True,
-                # query_filter=models.Filter(
-                #     must=[
-                #             models.FieldCondition(
-                #                 key="name",
-                #                 match=models.MatchAny(any=["Gmail", "Notion"])
-                #             )
-                #     ]
-                # )
+                query_filter=models.Filter(
+                    must=[
+                            models.FieldCondition(
+                                key="name",
+                                match=models.MatchAny(any=["Gmail", "Notion"])
+                            )
+                    ]
+                )
             )
 
             print("SEARCH RESULT: ", search_result)
