@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from typing import List, Dict, Any, Optional
 import uvicorn
 import os
@@ -13,6 +14,11 @@ app = FastAPI(
     description="API for MCP server search",
     version="1.0.0"
 )
+
+# Add this endpoint to handle favicon requests
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return RedirectResponse(url="about:blank")
 
 vector_service = MCPVectorDBService()
 
@@ -31,15 +37,15 @@ async def health_check():
 # GET endpoint for simple queries
 @app.get("/search", response_model=SearchResponse)
 async def search_vectors_get(
-    q: str = Query(..., description="Search query string", min_length=1, max_length=1000),
+    query: str = Query(..., description="Search query string", min_length=1, max_length=1000),
     k: int = Query(default=1, description="Number of results", ge=1, le=100)
 ):
     """
     GET endpoint for vector search.
     """
-    search_query = SearchQuery(query=q, k=k)
+    search_query = SearchQuery(query=query, k=k)
     try:
-        params = VectorSearchParams(query=search_query.query)
+        params = VectorSearchParams(query=search_query.query, k=k)
         result = await vector_service.search(params)
         return result
     except Exception as e:
