@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 import uvicorn
 import os
 from dotenv import load_dotenv
-from ..vector_service import MCPVectorDBService, VectorSearchParams
+from ..qdrant_vector_search.qdrant_client import QdrantVectorDb
 from .models import SearchQuery, SearchResponse
 
 load_dotenv()
@@ -20,7 +20,7 @@ app = FastAPI(
 async def favicon():
     return RedirectResponse(url="about:blank")
 
-vector_service = MCPVectorDBService()
+vector_service = QdrantVectorDb()
 
 # Health check endpoint
 @app.get("/health")
@@ -45,8 +45,7 @@ async def search_vectors_get(
     """
     search_query = SearchQuery(query=query, k=k)
     try:
-        params = VectorSearchParams(query=search_query.query, k=k)
-        result = await vector_service.search(params)
+        result = await vector_service.search(search_query=search_query)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
