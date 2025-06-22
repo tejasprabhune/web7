@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
 import uvicorn
 import os
@@ -32,6 +33,16 @@ app = FastAPI(
     title="Web7 Vector Search API",
     description="API for MCP server search",
     version="1.0.0",
+)
+
+origins = ["http://localhost:3000"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -70,6 +81,12 @@ async def create_agent(tool_id: int):
 @app.post("/user-query")
 async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTasks):
     """Submit query and start processing in background"""
+    # TODO: remove
+    return {
+        "agent_id": "hello",
+        "status": 0,
+    }
+
     agent_id = await create_agent()
     session = WorkflowSession(agent_id, request.query)
     workflow_sessions[agent_id] = session
@@ -78,8 +95,7 @@ async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTa
 
     return {
         "agent_id": agent_id,
-        "status": "initiated",
-        "message": "Workflow started successfully",
+        "status": 0,
     }
 
 
@@ -102,6 +118,10 @@ async def submit_query_with_id(
 
 @app.get("/workflow/{agent_id}")
 async def get_workflow_status(agent_id: str):
+    # TODO: remove
+    session = WorkflowSession("hello", "query")
+    return session.to_dict()
+
     """Get current workflow status - Frontend polls this endpoint"""
     if agent_id not in workflow_sessions:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -145,6 +165,60 @@ async def process_workflow(agent_id: str):
                 status=StepStatus.FAILED,
                 details={"error": str(e)},
             )
+
+
+@app.get("/workflow/{agent_id}/steps")
+def get_steps(agent_id: str):
+    # TODO: remove
+    return {
+        "status": 0,
+        "steps": [{"name": "hi", "id": "0"}, {"name": "bye", "id": "1"}],
+    }
+
+    if agent_id not in workflow_sessions:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    session = workflow_sessions[agent_id]
+
+    if not session.steps:
+        return {"status": 1}
+
+    return {
+        "status": 0,
+        "steps": [{"name": step.action, "id": step.step_id} for step in session.steps],
+    }
+
+
+@app.get("/workflow/{agent_id}/{step_id}")
+def get_step_info(agent_id: str, step_id: int):
+    step = Step(
+        step_id="0",
+        action="hi",
+        mcp_server="ya",
+        mcp_server_img_url="",
+        status="updated",
+        details="here is a groq log summary",
+    )
+    return step.to_dict()
+
+    if agent_id not in workflow_sessions:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    session = workflow_sessions[agent_id]
+
+    if not session.steps:
+        return {"status": 1}
+
+    if step_id not in [step.step_id for step in session.steps]:
+        return {"status": 1}
+
+    matched_step = None
+    for step in session.steps:
+        if step.step_id == step_id:
+            matched_step = step
+            break
+
+    return matched_step.to_dict()
 
 
 vector_service = QdrantVectorDb()

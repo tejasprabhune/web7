@@ -121,6 +121,7 @@ class WorkflowSession:
         self.status = WorkflowStatus.STARTED
         self.steps: list[Step] = []
         self.current_step = 0
+        self.logs: list[str] = []
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self.progress_percentage = 0

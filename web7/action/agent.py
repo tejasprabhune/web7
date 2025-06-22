@@ -59,6 +59,31 @@ async def generate_task_list(agent_id, user_input) -> list[str]:
     return ast.literal_eval(task_list)
 
 
+async def create_log(session: WorkflowSession, message: str):
+    system_prompt = """
+    You will be given a thought process or results from an AI model. Your task is to summarize this thought process in five words or less. 
+    Carefully analyze the provided thought process. Identify the key actions, decisions, or steps that the AI model took to complete its task. 
+
+    Create a concise summary that captures the essence of the thought process in no more than 10 words. This summary should give a clear, high-level understanding of what the AI did.
+
+    """
+
+    user_prompt = f"""
+    Here is the thought process:
+
+    <thought_process>
+    {message}
+    </thought_process>
+
+    Provide your ten-word (or less) summary. Do not include any additional explanation or justification.
+    """
+    details = await groq_complete(groq, system_prompt, user_prompt)
+
+    session.logs.append(details)
+
+    return details
+
+
 async def accomplish_task(session: WorkflowSession, task, task_number):
     await detach_tools(session.agent_id)
     response = await mcp_search(session.agent_id, task, k=1)
@@ -104,8 +129,10 @@ Now, please proceed with the task using the provided tools and following the ins
     )
 
     messages = []
+    tasks = []
     async for message in stream:
         messages.append(message)
+        tasks.append(asyncio.create_task(create_log(session, message)))
         print(message)
 
     if f"task {task_number}" in [
@@ -126,24 +153,7 @@ Now, please proceed with the task using the provided tools and following the ins
         print("new block created")
         await client.agents.blocks.attach(agent_id=session.agent_id, block_id=block.id)
 
-    system_prompt = """
-    You will be given a thought process or results from an AI model. Your task is to summarize this thought process in five words or less. 
-    Carefully analyze the provided thought process. Identify the key actions, decisions, or steps that the AI model took to complete its task. 
-
-    Create a concise summary that captures the essence of the thought process in no more than 10 words. This summary should give a clear, high-level understanding of what the AI did.
-
-    """
-
-    user_prompt = f"""
-    Here is the thought process:
-
-    <thought_process>
-    {str(messages)}
-    </thought_process>
-
-    Provide your ten-word (or less) summary. Do not include any additional explanation or justification.
-    """
-    details = await groq_complete(groq, system_prompt, user_prompt)
+    details = await create_log(session, str(messages))
 
     session.add_step(
         action=task,
@@ -152,6 +162,8 @@ Now, please proceed with the task using the provided tools and following the ins
         status=StepStatus.UPDATED,
         details=details,
     )
+
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def main():
