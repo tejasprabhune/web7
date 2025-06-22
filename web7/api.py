@@ -19,7 +19,7 @@ import uuid
 import asyncio
 import time
 from letta_client import LlmConfig, AsyncLetta, StreamableHttpServerConfig
-
+from action.agent import generate_task_list
 
 load_dotenv()
 
@@ -238,35 +238,7 @@ async def process_workflow(session_id: str):
         session.status = "processing"
 
         # Define your workflow steps
-        workflow_steps = [
-            {"action": "analyze_query", "mcp_server": "query_analyzer", "duration": 2},
-            {
-                "action": "select_mcp_servers",
-                "mcp_server": "server_selector",
-                "duration": 1,
-            },
-            {
-                "action": "connect_to_database",
-                "mcp_server": "database_connector",
-                "duration": 3,
-            },
-            {
-                "action": "execute_database_query",
-                "mcp_server": "database_connector",
-                "duration": 4,
-            },
-            {
-                "action": "process_results",
-                "mcp_server": "data_processor",
-                "duration": 3,
-            },
-            {"action": "generate_insights", "mcp_server": "ai_analyzer", "duration": 5},
-            {
-                "action": "format_response",
-                "mcp_server": "response_formatter",
-                "duration": 2,
-            },
-        ]
+        workflow_steps = await generate_task_list(session.agent_id, session.query)
 
         total_steps = len(workflow_steps)
 
