@@ -2,8 +2,10 @@
 """
 Test client for the Web7 Vector Search API.
 """
+
 import sys
 import os
+import requests
 
 # This is the crucial part: Add the project root to the Python path
 # so that the `web7` module can be found. This must be done BEFORE
@@ -16,19 +18,26 @@ import asyncio
 import httpx
 import json
 from typing import Dict, Any
-from web7.search.database_server.models import SearchResponse, MCPResponse, TransportType
+from web7.search.database_server.models import (
+    SearchResponse,
+    MCPResponse,
+    TransportType,
+)
+
 
 async def test_search():
     """Test the vector search endpoint."""
     base_url = "http://localhost:8000"
-    
+
     try:
         async with httpx.AsyncClient() as client:
             # Test basic search
             query = "send email"
             print(f"🔍 Testing search with query: '{query}'...")
-            response = await client.get(f"{base_url}/search", params={"query": query, "k": 2})
-            
+            response = await client.get(
+                f"{base_url}/search", params={"query": query, "k": 2}
+            )
+
             if response.status_code == 200:
                 print("✅ Search successful!")
                 search_response = SearchResponse(**response.json())
@@ -42,18 +51,43 @@ async def test_search():
             print("\n🔍 Testing health check...")
             health_response = await client.get(f"{base_url}/health")
             if health_response.status_code == 200:
-                 print("✅ Health check successful!")
-                 print(f"   Response: {health_response.json()}")
+                print("✅ Health check successful!")
+                print(f"   Response: {health_response.json()}")
             else:
-                 print(f"❌ Health check failed with status: {health_response.status_code}")
+                print(
+                    f"❌ Health check failed with status: {health_response.status_code}"
+                )
 
     except httpx.ConnectError:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("❌ CONNECTION FAILED")
         print("Could not connect to the server at http://localhost:8000.")
-        print("\n❗️ Please start the server in a separate terminal before running the client:")
+        print(
+            "\n❗️ Please start the server in a separate terminal before running the client:"
+        )
         print("   -> python scripts/run_server.py")
-        print("="*50)
+        print("=" * 50)
+
+
+def test_query():
+    response = requests.post(
+        "http://localhost:8000/user-query-id",
+        json={
+            "query": "Make me an email to send to charles@letta.com",
+            "agent_id": "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16",
+        },
+    )
+
+    print(response.json())
+
+    agent_id = response.json()["agent_id"]
+
+    response = requests.get(f"http://localhost:8000/workflow/{agent_id}")
+
+    print(response.json())
+
 
 if __name__ == "__main__":
-    asyncio.run(test_search())
+    # asyncio.run(test_search())
+    # asyncio.run(test_search())
+    test_query()

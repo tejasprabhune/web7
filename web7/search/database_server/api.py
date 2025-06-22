@@ -8,7 +8,12 @@ from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import Self
 from ..qdrant_vector_search.qdrant_client import QdrantVectorDb
-from .models import SearchQuery, SearchResponse, UserQueryRequest
+from .models import (
+    SearchQuery,
+    SearchResponse,
+    UserQueryRequest,
+    UserQueryRequestWithId,
+)
 from datetime import datetime
 import uuid
 import asyncio
@@ -24,8 +29,6 @@ app = FastAPI(
     description="API for MCP server search",
     version="1.0.0",
 )
-
-workflow_sessions: Dict[str, dict] = {}
 
 
 class WorkflowStatus(Enum):
@@ -70,6 +73,20 @@ class Step:
     timestamp: str
     details: str
     duration: float
+
+    def to_dict(self):
+        """
+        Serialize Step to a dictionary.
+        """
+        return {
+            "step_id": self.step_id,
+            "action": self.action,
+            "mcp_server": self.mcp_server,
+            "status": self.status.name.lower(),
+            "timestamp": self.timestamp,
+            "details": self.details,
+            "duration": self.duration,
+        }
 
 
 class WorkflowSession:
@@ -122,8 +139,23 @@ class WorkflowSession:
         self.updated_at = datetime.now()
 
     def to_dict(self):
-        return {}
-        pass
+        """
+        Serialize WorkflowSession to a dictionary.
+        """
+        return {
+            "agent_id": self.agent_id,
+            "query": self.query,
+            "status": self.status.name.lower(),
+            "steps": [step.to_dict() for step in self.steps],
+            "current_step": self.current_step,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "progress_percentage": self.progress_percentage,
+            "error_message": self.error_message,
+        }
+
+
+workflow_sessions: Dict[str, WorkflowSession] = {}
 
 
 async def init_letta():
@@ -155,13 +187,6 @@ async def create_agent(tool_id: int):
     return agent.id
 
 
-async def _action_request(agent_id: int, prompt: str) -> str:
-    # convert prompt to bigger prompt
-    # convert bigger prompt to steps
-    #
-    pass
-
-
 @app.post("/user-query")
 async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTasks):
     """Submit query and start processing in background"""
@@ -178,6 +203,23 @@ async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTa
     }
 
 
+@app.post("/user-query-id")
+async def submit_query_with_id(
+    request: UserQueryRequestWithId, background_tasks: BackgroundTasks
+):
+    """Submit query and start processing in background"""
+    session = WorkflowSession(request.agent_id, request.query)
+    workflow_sessions[request.agent_id] = session
+
+    background_tasks.add_task(process_workflow, request.agent_id, request.query)
+
+    return {
+        "agent_id": request.agent_id,
+        "status": "initiated",
+        "message": "Workflow started successfully",
+    }
+
+
 @app.get("/workflow/{agent_id}")
 async def get_workflow_status(agent_id: str):
     """Get current workflow status - Frontend polls this endpoint"""
@@ -186,53 +228,6 @@ async def get_workflow_status(agent_id: str):
 
     session = workflow_sessions[agent_id]
     return session.to_dict()
-
-
-@app.get("/workflow/{session_id}/graph-data")
-async def get_graph_data(session_id: str):
-    """Get formatted data for frontend graph visualization"""
-    if session_id not in workflow_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    session = workflow_sessions[session_id]
-
-    # Format data specifically for graph visualization
-    nodes = []
-    edges = []
-
-    for i, step in enumerate(session.steps):
-        # Create node for each step
-        node = {
-            "id": step["step_id"],
-            "label": step["action"].replace("_", " ").title(),
-            "status": step["status"],
-            "mcp_server": step["mcp_server"],
-            "details": step["details"],
-            "timestamp": step["timestamp"],
-            "duration": step.get("duration"),
-            "position": {"x": i * 200, "y": 100},  # Simple horizontal layout
-        }
-        nodes.append(node)
-
-        # Create edge to next step
-        if i < len(session.steps) - 1:
-            edge = {
-                "id": f"edge_{i}",
-                "source": step["step_id"],
-                "target": session.steps[i + 1]["step_id"],
-                "animated": session.steps[i + 1]["status"] == "started",
-            }
-            edges.append(edge)
-
-    return {
-        "nodes": nodes,
-        "edges": edges,
-        "session_info": {
-            "query": session.query,
-            "status": session.status,
-            "progress": session.progress_percentage,
-        },
-    }
 
 
 async def process_workflow(session_id: str):
@@ -540,4 +535,3 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
 
     uvicorn.run("api:app", host=host, port=port, reload=True, log_level="info")
-
