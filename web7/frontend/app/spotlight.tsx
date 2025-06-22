@@ -67,6 +67,7 @@ export function Spotlight({ agentData }: SpotlightProps) {
 	useEffect(() => {
 		if (agentData.actionPlan && !agentData.currentStep) {
 			const firstStepId = agentData.actionPlan.steps?.[0]?.id;
+            console.log("action plan loaded, setting first step id:", firstStepId)
 			if (firstStepId) {
 				agentData.setCurrentStepId(firstStepId);
 			}
@@ -77,6 +78,7 @@ export function Spotlight({ agentData }: SpotlightProps) {
 	useEffect(() => {
 		if (agentData.actionPlan && agentData.currentStep) {
 			agentData.startPolling();
+            console.log("action plan and current step available")
 		}
 	}, [agentData.actionPlan, agentData.currentStep, agentData.startPolling]);
 

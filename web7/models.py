@@ -117,32 +117,30 @@ class Step:
 
 
 class WorkflowSession:
-    def __init__(self, agent_id: str, query: str, qdrant_client):
+    def __init__(self, agent_id: str, query: str):
         self.agent_id = agent_id
         self.query = query
         self.status = WorkflowStatus.STARTED
         self.steps: list[Step] = []
+        self.plan: list[str] = []
         self.current_step = 0
         self.logs: list[str] = []
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self.progress_percentage = 0
         self.error_message = None
-        self._qdrant = qdrant_client
 
     def add_step(
         self,
         action: str,
-        mcp_server: str,
-        mcp_server_img_url: str,
         status: StepStatus = StepStatus.NOT_STARTED,
         details: str = None,
     ):
         step = Step(
             step_id=f"step_{len(self.steps) + 1}",
             action=action,
-            mcp_server=mcp_server,
-            mcp_server_img_url=mcp_server_img_url,
+            mcp_server="",
+            mcp_server_img_url="",
             status=status,
             details=details,
             timestamp=datetime.now().isoformat(),
@@ -153,13 +151,19 @@ class WorkflowSession:
         return step
 
     def update_step(
-        self, step_id: str, status: str, details: dict = None, duration: float = None
+        self,
+        step_id: str,
+        status: str,
+        mcp_server_img_url: str,
+        details: dict = None,
+        duration: float = None,
     ):
         for step in self.steps:
             if step.step_id == step_id:
                 step.status = status
                 step.timestamp = datetime.now().isoformat()
                 step.details = details
+                step.mcp_server_img_url = mcp_server_img_url
                 if duration:
                     step.duration = duration
                 break

@@ -1,6 +1,7 @@
 import asyncio
 import dotenv
 from dataclasses import dataclass
+import json
 import os
 import requests
 from typing import Self
@@ -131,7 +132,7 @@ async def _mcp_search(agent_id: str, query: str, k: int) -> int:
     response = await search_vectors(query, k)
     print(response.json())
 
-    mcp_response: McpResponse = McpResponse.from_dict(response.json())
+    mcp_response: McpResponse = McpResponse.from_dict(json.loads(response.json()))
 
     await detach_tools(agent_id)
 

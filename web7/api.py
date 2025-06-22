@@ -46,8 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-vector_service = QdrantVectorDb()
-
 workflow_sessions: Dict[str, WorkflowSession] = {}
 
 
@@ -59,8 +57,8 @@ async def init_letta():
     )
 
 
-async def create_agent(tool_id: int):
-    search_tool = await client.tools.add_mcp_tool("search", "mcp_search")
+async def create_agent():
+    # search_tool = await client.tools.add_mcp_tool("search", "mcp_search")
     agent = await client.agents.create(
         model="anthropic/claude-sonnet-4-20250514",
         embedding="openai/text-embedding-3-small",
@@ -75,7 +73,7 @@ async def create_agent(tool_id: int):
             },
         ],
     )
-    await client.agents.tools.attach(agent.id, search_tool.id)
+    # await client.agents.tools.attach(agent.id, search_tool.id)
 
     return agent.id
 
@@ -89,9 +87,9 @@ async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTa
     #     "status": 0,
     # }
 
-    # agent_id = await create_agent()
-    agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
-    session = WorkflowSession(agent_id, request.query, vector_service)
+    agent_id = await create_agent()
+    # agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
+    session = WorkflowSession(agent_id, request.query)
     workflow_sessions[agent_id] = session
 
     background_tasks.add_task(process_workflow, agent_id)
@@ -107,7 +105,7 @@ async def submit_query_with_id(
     request: UserQueryRequestWithId, background_tasks: BackgroundTasks
 ):
     """Submit query and start processing in background"""
-    session = WorkflowSession(request.agent_id, request.query, vector_service)
+    session = WorkflowSession(request.agent_id, request.query)
     workflow_sessions[request.agent_id] = session
 
     background_tasks.add_task(process_workflow, request.agent_id, request.query)
@@ -146,6 +144,10 @@ async def process_workflow(agent_id: str):
         )
 
         print("workflow steps:", workflow_steps)
+        for step in workflow_steps:
+            session.add_step(action=step)
+
+        print(session.steps)
 
         total_steps = len(workflow_steps)
 

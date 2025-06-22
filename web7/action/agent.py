@@ -155,11 +155,10 @@ Now, please proceed with the task using the provided tools and following the ins
 
     details = await create_log(session, str(messages))
 
-    session.add_step(
-        action=task,
-        mcp_server="",
-        mcp_server_img_url=mcp_server_img_url,
+    session.update_step(
+        step_id=f"step_{task_number}",
         status=StepStatus.UPDATED,
+        mcp_server_img_url=mcp_server_img_url,
         details=details,
     )
 
