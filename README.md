@@ -1,4 +1,4 @@
-# web7: Zero-Shot Agent -- AI That Just Works
+# web7: Zero-Shot Agent
 
 ## What Inspired Us
 Our team has been frustrated by the gap between AI's potential and reality. While MCP (Model Context Protocol) has made AI agents incredibly powerful, setting them up feels like assembling IKEA furniture without instructions. In other words, it's technically possible, but painfully tedious. We imagined a world where you could simply say "Schedule a dinner with Sarah next Tuesday and send her the new restaurant menu" and it would just happen. No server configurations, no technical setup--just pure intention to action.
