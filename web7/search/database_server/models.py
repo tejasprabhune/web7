@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
+class UserQueryRequest(BaseModel):
+    query: str
+
 class SearchQuery(BaseModel):
     """Model for search query request."""
     query: str = Field(..., description="The search query string", min_length=1, max_length=1000)
