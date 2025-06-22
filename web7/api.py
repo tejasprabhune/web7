@@ -243,7 +243,6 @@ async def process_workflow(session_id: str):
         total_steps = len(workflow_steps)
 
         for i, step_config in enumerate(workflow_steps):
-            # Add step to session
             response = await accomplish_task(session.agent_id, step_config, i)
 
             step = session.add_step(
@@ -460,26 +459,7 @@ async def serve_frontend():
     return HTMLResponse(content=html_content)
 
 
-# Add this endpoint to handle favicon requests
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return RedirectResponse(url="about:blank")
-
-
 vector_service = QdrantVectorDb()
-
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    db_health = await vector_service.health_check()
-    return {
-        "status": "healthy",
-        "service": "web7-vector-search",
-        "version": "1.0.0",
-        "database": db_health,
-    }
 
 
 # GET endpoint for simple queries
@@ -500,11 +480,13 @@ async def search_vectors_get(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
+
 async def main():
     await init_letta()
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run("api:app", host=host, port=port, reload=True, log_level="info")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

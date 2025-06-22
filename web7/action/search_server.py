@@ -21,7 +21,13 @@ async def search(
                 "transport": "streamable-http",
                 "url": "https://mcp.composio.dev/composio/server/2209a624-d742-49c5-9eb0-739d6ff86cff/mcp",
                 "authentication": "",
-            }
+            },
+            {
+                "name": "web7_gmail",
+                "transport": "streamable-http",
+                "url": "https://mcp.composio.dev/composio/server/7d3d4809-4766-45e3-92f2-7c646c11b1cb/mcp?include_composio_helper_actions=true",
+                "authentication": "",
+            },
         ],
     }
 
