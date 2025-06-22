@@ -65,50 +65,49 @@ export function useAgentData() {
     }
   }, []);
 
-  const fetchActionPlan = useCallback(async (agentId: string) => {
-    if (!agentId || isFetchingActionPlanRef.current) return null;
-    
-    isFetchingActionPlanRef.current = true;
-    setData(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const response = await fetch(get_action_plan(agentId));
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch action plan');
-      }
+  // This effect polls for the action plan until it's ready.
+  useEffect(() => {
+    if (data.agentId && !data.actionPlan) {
+      setData(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const result = await response.json();
-      
-      console.log('Action plan response:', result);
-      
-      setData(prev => ({
-        ...prev,
-        actionPlan: result,
-        isLoading: false
-      }));
+      const intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(get_action_plan(data.agentId!));
+          if (!response.ok) {
+            // This will be caught by the catch block
+            throw new Error(`Action plan fetch failed with status: ${response.status}`);
+          }
 
-      // Return the status to determine if polling should continue
-      // Handle different possible response structures
-      const status = result.status !== undefined ? result.status : 
-                    result.data?.status !== undefined ? result.data.status : 
-                    null;
-      
-      return status;
-    } catch (error) {
-      console.error("Error fetching action plan:", error);
-      setData(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        isLoading: false
-      }));
-      return null;
-    } finally {
-      isFetchingActionPlanRef.current = false;
+          const result = await response.json();
+          console.log('Polling for action plan...', result);
+
+          // Stop polling once status is 0 (ready)
+          if (result.status === 0) {
+            clearInterval(intervalId);
+            setData(prev => ({
+              ...prev,
+              actionPlan: result,
+              isLoading: false,
+            }));
+          }
+        } catch (error) {
+          clearInterval(intervalId);
+          console.error("Error fetching action plan:", error);
+          setData(prev => ({
+            ...prev,
+            error: error instanceof Error ? error.message : 'Unknown error while fetching action plan',
+            isLoading: false,
+          }));
+        }
+      }, 2000); // Poll every 2 seconds
+
+      // Cleanup function to clear the interval if the component unmounts
+      return () => clearInterval(intervalId);
     }
-  }, []);
+  }, [data.agentId, data.actionPlan]);
 
   const fetchStepResponse = useCallback(async (agentId: string, stepId: string) => {
+    console.log("fetching step response", agentId, stepId);
     if (!agentId || !stepId) return;
 
     // No isLoading change here to keep the UI smooth during polling
@@ -150,6 +149,19 @@ export function useAgentData() {
     }
   }, [stopPolling]);
 
+  // This effect handles the polling for individual step responses.
+  useEffect(() => {
+    if (!isPolling || !data.agentId || !data.currentStep) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      fetchStepResponse(data.agentId!, data.currentStep!);
+    }, 3000); // Polling interval
+
+    return () => clearInterval(intervalId);
+  }, [isPolling, data.agentId, data.currentStep, fetchStepResponse]);
+
   const resetData = useCallback(() => {
     setData({
       agentId: null,
@@ -167,33 +179,12 @@ export function useAgentData() {
     setData(prev => ({ ...prev, currentStep: stepId }));
   }, []);
 
-  // Auto-fetch action plan when agentId is set
-  useEffect(() => {
-    if (data.agentId && !data.actionPlan && !isFetchingActionPlanRef.current) {
-      fetchActionPlan(data.agentId);
-    }
-  }, [data.agentId, data.actionPlan]);
-
-  // This effect handles the polling logic
-  useEffect(() => {
-    if (!isPolling || !data.agentId || !data.currentStep) {
-      return;
-    }
-
-    const intervalId = setInterval(() => {
-      fetchStepResponse(data.agentId!, data.currentStep!);
-    }, 3000); // Polling interval
-
-    return () => clearInterval(intervalId);
-  }, [isPolling, data.agentId, data.currentStep, fetchStepResponse]);
-
   return {
     ...data,
     isPolling,
     startPolling,
     stopPolling,
     createAgent,
-    fetchActionPlan,
     fetchStepResponse,
     resetData,
     setCurrentStepId,

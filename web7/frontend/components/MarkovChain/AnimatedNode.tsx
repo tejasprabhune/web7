@@ -1,13 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { MarkovNode } from './types';
 
+// The props received by a custom node are the 'data' property of the node object.
 interface AnimatedNodeProps {
-  data: MarkovNode;
+  data: {
+    label: string;
+    timestamp: number;
+    details?: string;
+    mcp_server?: string;
+    mcp_server_img_url?: string;
+    value?: number;
+  };
   isConnectable: boolean;
+  id: string; // React Flow also passes id here
 }
 
-export const AnimatedNode: React.FC<AnimatedNodeProps> = ({ data, isConnectable }) => {
+export const AnimatedNode: React.FC<AnimatedNodeProps> = memo(({ data, isConnectable, id }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [scale, setScale] = useState(0);
 
@@ -37,12 +46,11 @@ export const AnimatedNode: React.FC<AnimatedNodeProps> = ({ data, isConnectable 
         className="w-3 h-3 bg-blue-400 border-2 border-white"
         style={{ opacity: 0.9 }}
       />
-      {data.data.mcp_server_img_url}
       <div className="flex flex-col items-center justify-center w-[140px] h-[140px] bg-white/95 backdrop-blur-sm border-2 border-blue-400/60 rounded-full shadow-lg">
-        {data.data.mcp_server_img_url && (
+        {data.mcp_server_img_url && (
           <img 
-            src={data.data.mcp_server_img_url} 
-            alt={data.data.mcp_server}
+            src={data.mcp_server_img_url} 
+            alt={data.mcp_server || 'Server Image'}
             className="w-15 h-15 rounded-full mb-2 object-cover"
           />
         )}
@@ -57,8 +65,10 @@ export const AnimatedNode: React.FC<AnimatedNodeProps> = ({ data, isConnectable 
         isConnectable={isConnectable}
         className="w-3 h-3 bg-green-400 border-2 border-white"
         style={{ opacity: 0.9 }}
-        id={data.id}
+        id={id}
       />
     </div>
   );
-}; 
+});
+
+AnimatedNode.displayName = 'AnimatedNode'; 

@@ -28,37 +28,6 @@ export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentI
   const [isOpen, setIsOpen] = useState(true); // Default to open in side-by-side mode
   const [tasks, setTasks] = useState<TaskItem[]>([]);
 
-  // Auto-progress tasks based on Markov chain activity
-  useEffect(() => {
-    if (isMarkovActive) {
-      setTasks(prevTasks => {
-        const newTasks = [...prevTasks];
-        
-        // Progress based on node count
-        if (nodeCount >= 1) {
-          newTasks[0] = { ...newTasks[0], status: "completed" };
-          newTasks[1] = { ...newTasks[1], status: "completed" };
-        }
-        
-        // if (nodeCount >= 2) {
-        //   newTasks[2] = { ...newTasks[2], status: "in-progress" };
-        // }
-        
-        // if (nodeCount >= 3) {
-        //   newTasks[2] = { ...newTasks[2], status: "completed" };
-        //   newTasks[3] = { ...newTasks[3], status: "in-progress" };
-        // }
-        
-        // if (nodeCount >= 4) {
-        //   newTasks[3] = { ...newTasks[3], status: "completed" };
-        //   newTasks[4] = { ...newTasks[4], status: "completed" };
-        // }
-        
-        return newTasks;
-      });
-    }
-  }, [isMarkovActive, nodeCount]);
-
   const toggleTaskStatus = (taskId: string) => {
     setTasks(prevTasks => 
       prevTasks.map(task => {
@@ -113,7 +82,7 @@ export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentI
           </button>
         </div>
         <p className="text-blue-100 text-xs mt-1">
-          {actionPlan?.steps?.filter(t => t.status === "updated").length} of {agentData?.actionPlan?.steps.length} completed
+          {actionPlan?.steps?.filter(t => t.status === "updated").length} of {agentData?.actionPlan?.steps?.length} completed
         </p>
         {agentData?.isLoading && !agentData.actionPlan && (
           <p className="text-blue-100 text-xs mt-1">

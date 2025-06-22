@@ -1,4 +1,4 @@
-export const api_url = "http://127.0.0.1:8000";
+export const api_url = "https://b8fc-2001-5a8-4517-9500-7c89-ff92-d274-9a8d.ngrok-free.app";
 
 export const get_agent_id = `${api_url}/user-query`;
 export const get_action_plan = (agentId: string) => `${api_url}/workflow/${agentId}/steps`;
