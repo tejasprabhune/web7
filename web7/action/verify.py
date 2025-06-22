@@ -1,13 +1,11 @@
-import os
-from groq import Groq
-import json
 from dotenv import load_dotenv
+import json
+
+from ..llm.groq import groq_complete, init_groq
 
 load_dotenv()
 
-grok_client = Groq(
-    api_key=os.getenv("GROQ_API_KEY"),
-)
+groq_client = init_groq()
 
 system_prompt = """
 You are a highly analytical evaluation agent. Your job is to verify whether a given output satisfies the requirements of a specified task. You must evaluate strictly and objectively based on the task description, not based on assumptions or missing context.
@@ -32,22 +30,14 @@ Be concise but precise. Do not include any additional text outside of the JSON o
 
 
 def verify(task_descriptor: str, llm_response: str):
-    chat_completion = grok_client.chat.completions.create(
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": f"TASK DESCRIPTOR: {task_descriptor}. OUTPUT: {llm_response}",
-            }
-        ],
-        model="llama-3.3-70b-versatile",
+    user_prompt = f"TASK DESCRIPTOR: {task_descriptor}. OUTPUT: {llm_response}"
+    return json.loads(groq_complete(groq_client, system_prompt, user_prompt))
+
+
+if __name__ == "__main__":
+    print(
+        verify(
+            """Write a function in JavaScript named greet(name) that returns the string Hello, <name>!.""",
+            """def greet(name): return f'Hello, {name}!'""",
+        )
     )
-
-    json_response = json.loads(chat_completion.choices[0].message.content)
-
-    return json_response
-
-print(verify("""Write a function in JavaScript named greet(name) that returns the string Hello, <name>!.""", """def greet(name): return f'Hello, {name}!'"""))

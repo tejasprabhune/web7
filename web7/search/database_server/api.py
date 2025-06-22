@@ -3,60 +3,117 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from typing import List, Dict, Any, Optional
 import uvicorn
 import os
+from enum import Enum
 from dotenv import load_dotenv
+from dataclasses import dataclass
+from typing import Self
 from ..qdrant_vector_search.qdrant_client import QdrantVectorDb
 from .models import SearchQuery, SearchResponse, UserQueryRequest
 from datetime import datetime
 import uuid
 import asyncio
 import time
+from letta_client import LlmConfig, AsyncLetta, StreamableHttpServerConfig
 
 
 load_dotenv()
 
+client = AsyncLetta(token=os.getenv("LETTA_API_KEY"))
 app = FastAPI(
     title="Web7 Vector Search API",
     description="API for MCP server search",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 workflow_sessions: Dict[str, dict] = {}
 
+
+class WorkflowStatus(Enum):
+    STARTED = 1
+    IN_PROGRESS = 2
+    FAILED = 3
+
+    def from_str(status: str) -> Self:
+        match status:
+            case "started":
+                return WorkflowStatus.STARTED
+            case "in_progress":
+                return WorkflowStatus.IN_PROGRESS
+            case "failed":
+                return WorkflowStatus.FAILED
+
+
+class StepStatus(Enum):
+    NOT_STARTED = 0
+    STARTED = 1
+    UPDATED = 2
+    FAILED = 3
+
+    def from_str(status: str) -> Self:
+        match status:
+            case "not_started":
+                return StepStatus.NOT_STARTED
+            case "started":
+                return StepStatus.STARTED
+            case "updated":
+                return StepStatus.UPDATED
+            case "failed":
+                return StepStatus.FAILED
+
+
+@dataclass
+class Step:
+    step_id: str
+    action: str
+    mcp_server: str
+    status: StepStatus
+    timestamp: str
+    details: str
+    duration: float
+
+
 class WorkflowSession:
-    def __init__(self, session_id: str, query: str):
-        self.session_id = session_id
+    def __init__(self, agent_id: str, query: str):
+        self.agent_id = agent_id
         self.query = query
-        self.status = "initiated"
-        self.steps = []
+        self.status = WorkflowStatus.STARTED
+        self.steps: list[Step] = []
         self.current_step = 0
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self.progress_percentage = 0
         self.error_message = None
 
-    def add_step(self, action: str, mcp_server: str, status: str = "started", details: dict = None):
-        step = {
-            "step_id": f"step_{len(self.steps) + 1}",
-            "action": action,
-            "mcp_server": mcp_server,
-            "status": status,
-            "details": details or {},
-            "timestamp": datetime.now().isoformat(),
-            "duration": None
-        }
+    def add_step(
+        self,
+        action: str,
+        mcp_server: str,
+        status: StepStatus = StepStatus.NOT_STARTED,
+        details: str = None,
+    ):
+        step = Step(
+            step_id=f"step_{len(self.steps) + 1}",
+            action=action,
+            mcp_server=mcp_server,
+            status=status,
+            details=details,
+            timestamp=datetime.now().isoformat(),
+            duration=None,
+        )
         self.steps.append(step)
         self.updated_at = datetime.now()
         return step
 
-    def update_step(self, step_id: str, status: str, details: dict = None, duration: float = None):
+    def update_step(
+        self, step_id: str, status: str, details: dict = None, duration: float = None
+    ):
         for step in self.steps:
-            if step["step_id"] == step_id:
-                step["status"] = status
-                step["timestamp"] = datetime.now().isoformat()
-                if details:
-                    step["details"].update(details)
+            if step.step_id == step_id:
+                step.status = status
+                step.timestamp = datetime.now().isoformat()
+                step.details = details
                 if duration:
-                    step["duration"] = duration
+                    step.duration = duration
                 break
         self.updated_at = datetime.now()
 
@@ -65,58 +122,84 @@ class WorkflowSession:
         self.updated_at = datetime.now()
 
     def to_dict(self):
-        return {
-            "session_id": self.session_id,
-            "query": self.query,
-            "status": self.status,
-            "steps": self.steps,
-            "current_step": self.current_step,
-            "progress_percentage": self.progress_percentage,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "error_message": self.error_message,
-            "total_steps": len(self.steps)
-        }
-    
+        return {}
+        pass
+
+
+async def init_letta():
+    await client.tools.add_mcp_server(
+        request=StreamableHttpServerConfig(
+            server_name="search", server_url=os.getenv("SEARCH_MCP_ENDPOINT")
+        )
+    )
+
+
+async def create_agent(tool_id: int):
+    search_tool = await client.tools.add_mcp_tool("search", "mcp_search")
+    agent = await client.agents.create(
+        model="anthropic/claude-sonnet-4-20250514",
+        embedding="openai/text-embedding-3-small",
+        memory_blocks=[
+            {"label": "human", "value": ""},
+            {
+                "label": "persona",
+                "value": (
+                    "I am an AI assistant agent tailored towards executing"
+                    "workflows using tools to accomplish the user's task."
+                ),
+            },
+        ],
+    )
+    await client.agents.tools.attach(agent.id, search_tool.id)
+
+    return agent.id
+
+
+async def _action_request(agent_id: int, prompt: str) -> str:
+    # convert prompt to bigger prompt
+    # convert bigger prompt to steps
+    #
+    pass
+
+
 @app.post("/user-query")
 async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTasks):
     """Submit query and start processing in background"""
-    session_id = str(uuid.uuid4())
-    
-    # Create workflow session
-    session = WorkflowSession(session_id, request.query)
-    workflow_sessions[session_id] = session
-    
-    # Start processing in background
-    background_tasks.add_task(process_workflow, session_id)
-    
+    agent_id = await create_agent()
+    session = WorkflowSession(agent_id, request.query)
+    workflow_sessions[agent_id] = session
+
+    background_tasks.add_task(process_workflow, agent_id, request.query)
+
     return {
-        "session_id": session_id,
+        "agent_id": agent_id,
         "status": "initiated",
-        "message": "Workflow started successfully"
+        "message": "Workflow started successfully",
     }
 
-@app.get("/workflow/{session_id}")
-async def get_workflow_status(session_id: str):
+
+@app.get("/workflow/{agent_id}")
+async def get_workflow_status(agent_id: str):
     """Get current workflow status - Frontend polls this endpoint"""
-    if session_id not in workflow_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    session = workflow_sessions[session_id]
+    if agent_id not in workflow_sessions:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    session = workflow_sessions[agent_id]
     return session.to_dict()
+
 
 @app.get("/workflow/{session_id}/graph-data")
 async def get_graph_data(session_id: str):
     """Get formatted data for frontend graph visualization"""
     if session_id not in workflow_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     session = workflow_sessions[session_id]
-    
+
     # Format data specifically for graph visualization
     nodes = []
     edges = []
-    
+
     for i, step in enumerate(session.steps):
         # Create node for each step
         node = {
@@ -127,86 +210,113 @@ async def get_graph_data(session_id: str):
             "details": step["details"],
             "timestamp": step["timestamp"],
             "duration": step.get("duration"),
-            "position": {"x": i * 200, "y": 100}  # Simple horizontal layout
+            "position": {"x": i * 200, "y": 100},  # Simple horizontal layout
         }
         nodes.append(node)
-        
+
         # Create edge to next step
         if i < len(session.steps) - 1:
             edge = {
                 "id": f"edge_{i}",
                 "source": step["step_id"],
                 "target": session.steps[i + 1]["step_id"],
-                "animated": session.steps[i + 1]["status"] == "started"
+                "animated": session.steps[i + 1]["status"] == "started",
             }
             edges.append(edge)
-    
+
     return {
         "nodes": nodes,
         "edges": edges,
         "session_info": {
             "query": session.query,
             "status": session.status,
-            "progress": session.progress_percentage
-        }
+            "progress": session.progress_percentage,
+        },
     }
+
 
 async def process_workflow(session_id: str):
     """Main workflow processing logic - customize this for your LLM"""
     session = workflow_sessions[session_id]
-    
+
     try:
         session.status = "processing"
-        
+
         # Define your workflow steps
         workflow_steps = [
             {"action": "analyze_query", "mcp_server": "query_analyzer", "duration": 2},
-            {"action": "select_mcp_servers", "mcp_server": "server_selector", "duration": 1},
-            {"action": "connect_to_database", "mcp_server": "database_connector", "duration": 3},
-            {"action": "execute_database_query", "mcp_server": "database_connector", "duration": 4},
-            {"action": "process_results", "mcp_server": "data_processor", "duration": 3},
+            {
+                "action": "select_mcp_servers",
+                "mcp_server": "server_selector",
+                "duration": 1,
+            },
+            {
+                "action": "connect_to_database",
+                "mcp_server": "database_connector",
+                "duration": 3,
+            },
+            {
+                "action": "execute_database_query",
+                "mcp_server": "database_connector",
+                "duration": 4,
+            },
+            {
+                "action": "process_results",
+                "mcp_server": "data_processor",
+                "duration": 3,
+            },
             {"action": "generate_insights", "mcp_server": "ai_analyzer", "duration": 5},
-            {"action": "format_response", "mcp_server": "response_formatter", "duration": 2}
+            {
+                "action": "format_response",
+                "mcp_server": "response_formatter",
+                "duration": 2,
+            },
         ]
-        
+
         total_steps = len(workflow_steps)
-        
+
         for i, step_config in enumerate(workflow_steps):
             # Add step to session
             step = session.add_step(
                 action=step_config["action"],
                 mcp_server=step_config["mcp_server"],
                 status="started",
-                details={"description": f"Starting {step_config['action'].replace('_', ' ')}"}
+                details={
+                    "description": f"Starting {step_config['action'].replace('_', ' ')}"
+                },
             )
-            
+
             session.current_step = i
             session.set_progress(int((i / total_steps) * 100))
-            
+
             start_time = time.time()
-            
+
             # Simulate the actual work (replace with your LLM/MCP calls)
-            await simulate_mcp_call(step_config["action"], step_config["mcp_server"], step_config["duration"])
-            
+            await simulate_mcp_call(
+                step_config["action"],
+                step_config["mcp_server"],
+                step_config["duration"],
+            )
+
             duration = time.time() - start_time
-            
+
             # Update step as completed
             session.update_step(
                 step["step_id"],
                 status="completed",
                 details={
                     "description": f"Successfully completed {step_config['action'].replace('_', ' ')}",
-                    "result": f"Processed by {step_config['mcp_server']}"
+                    "result": f"Processed by {step_config['mcp_server']}",
                 },
-                duration=duration
+                duration=duration,
             )
-            
+
             session.set_progress(int(((i + 1) / total_steps) * 100))
-        
+
         # Mark workflow as completed
         session.status = "completed"
         session.set_progress(100)
-        
+
     except Exception as e:
         session.status = "failed"
         session.error_message = str(e)
@@ -214,23 +324,23 @@ async def process_workflow(session_id: str):
         if session.steps and session.current_step < len(session.steps):
             current_step = session.steps[session.current_step]
             session.update_step(
-                current_step["step_id"],
-                status="failed",
-                details={"error": str(e)}
+                current_step["step_id"], status="failed", details={"error": str(e)}
             )
+
 
 async def simulate_mcp_call(action: str, mcp_server: str, duration: int):
     """Simulate MCP server call - replace with actual implementation"""
     await asyncio.sleep(duration)
-    
+
     # Here you would make actual calls to your LLM backend
     # Example:
     # if action == "analyze_query":
     #     result = await your_llm_client.analyze_query(...)
     # elif action == "connect_to_database":
     #     result = await your_mcp_client.connect_database(...)
-    
+
     return {"status": "success", "action": action, "server": mcp_server}
+
 
 @app.get("/")
 async def serve_frontend():
@@ -382,12 +492,15 @@ async def serve_frontend():
     """
     return HTMLResponse(content=html_content)
 
+
 # Add this endpoint to handle favicon requests
-@app.get('/favicon.ico', include_in_schema=False)
+@app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return RedirectResponse(url="about:blank")
 
+
 vector_service = QdrantVectorDb()
+
 
 # Health check endpoint
 @app.get("/health")
@@ -398,14 +511,17 @@ async def health_check():
         "status": "healthy",
         "service": "web7-vector-search",
         "version": "1.0.0",
-        "database": db_health
+        "database": db_health,
     }
+
 
 # GET endpoint for simple queries
 @app.get("/search", response_model=SearchResponse)
 async def search_vectors_get(
-    query: str = Query(..., description="Search query string", min_length=1, max_length=1000),
-    k: int = Query(default=1, description="Number of results", ge=1, le=100)
+    query: str = Query(
+        ..., description="Search query string", min_length=1, max_length=1000
+    ),
+    k: int = Query(default=1, description="Number of results", ge=1, le=100),
 ):
     """
     GET endpoint for vector search.
@@ -417,15 +533,11 @@ async def search_vectors_get(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
+
 if __name__ == "__main__":
     # Run the FastAPI server
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-    
-    uvicorn.run(
-        "api:app",
-        host=host,
-        port=port,
-        reload=True,
-        log_level="info"
-    ) 
+
+    uvicorn.run("api:app", host=host, port=port, reload=True, log_level="info")
+

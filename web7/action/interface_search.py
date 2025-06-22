@@ -1,12 +1,11 @@
-from typing import Self
-from dataclasses import dataclass
-import dotenv
 import asyncio
+import dotenv
+from dataclasses import dataclass
 import os
 import requests
+from typing import Self
 
 from letta_client import AsyncLetta, StreamableHttpServerConfig, Tool
-from letta_client.core.request_options import RequestOptions
 
 
 from mcp.server.fastmcp import FastMCP
@@ -26,6 +25,7 @@ system_tools = [
     "tool-9d63519f-409b-4a3b-bd07-36115c93d3e9",  # run_code
     "tool-ac00b505-d12d-4c4c-8e2b-98cf24b41cd1",  # archival_memory_search
     "tool-ee39ac08-1c08-4dcf-9b0d-c3f6e086c27d",  # web_search
+    "",  # mcp_search
 ]
 
 
@@ -56,8 +56,7 @@ async def detach_tools(agent_id: int) -> None:
 
     detach_tasks = []
     for attached_tool in attached_tools:
-        print(attached_tool.name, attached_tool.id)
-        if attached_tool.id not in system_tools:
+        if attached_tool.id not in system_tools or attached_tool.name != "mcp_search":
             print("detaching:", attached_tool.name)
             detach_tasks.append(
                 asyncio.create_task(
@@ -171,6 +170,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # asyncio.run(main())
-
     mcp.run(transport="streamable-http")

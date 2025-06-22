@@ -1,72 +1,72 @@
+from fastapi import FastAPI
+
 import os
 import dotenv
 from pprint import pprint
 import asyncio
-from letta_client import (
-    LlmConfig,
-    AsyncLetta,
-    MessageCreate,
-    TextContent,
-    AddMcpServerRequest,
-    SseServerConfig,
-)
+from letta_client import LlmConfig, AsyncLetta, StreamableHttpServerConfig
 
-from letta_client import Letta
+from .interface_search import attach_tools
 
 dotenv.load_dotenv()
-
-# Connect to Letta server
-client = Letta(token=os.getenv("LETTA_API_KEY"))
-
-# Use the "everything" mcp server:
-# https://github.com/modelcontextprotocol/servers/tree/main/src/everything
-mcp_server_name = "web7_notion"
-mcp_tool_name = "NOTION_SEARCH_NOTION_PAGE"
-
-# List all McpTool belonging to the "everything" mcp server.
-mcp_tools = client.tools.list_mcp_tools_by_server(
-    mcp_server_name=mcp_server_name,
+client = AsyncLetta(token=os.getenv("LETTA_API_KEY"))
+app = FastAPI(
+    title="Web7 Vector Search API",
+    description="API for MCP server search",
+    version="1.0.0",
 )
+running_tasks = set()
 
-mcp_tool = client.tools.add_mcp_tool(
-    mcp_server_name=mcp_server_name, mcp_tool_name=mcp_tool_name
-)
 
-agent_id = "agent-eba622c8-4ab9-49db-8c66-20e83f4fb4f7"
-client.agents.tools.attach(agent_id=agent_id, tool_id=mcp_tool.id)
+async def init_letta():
+    await client.tools.add_mcp_server(
+        request=StreamableHttpServerConfig(
+            server_name="search", server_url=os.getenv("SEARCH_MCP_ENDPOINT")
+        )
+    )
 
-mcp_tools = client.agents.tools.list(agent_id=agent_id)
 
-for tool in mcp_tools:
-    pprint(tool.name)
-    print()
+async def create_agent(tool_id: int):
+    search_tool = await client.tools.add_mcp_tool("search", "mcp_search")
+    agent = await client.agents.create(
+        model="anthropic/claude-sonnet-4-20250514",
+        embedding="openai/text-embedding-3-small",
+        memory_blocks=[
+            {"label": "human", "value": ""},
+            {
+                "label": "persona",
+                "value": (
+                    "I am an AI assistant agent tailored towards executing"
+                    "workflows using tools to accomplish the user's task."
+                ),
+            },
+        ],
+    )
+    await client.agents.tools.attach(agent.id, search_tool.id)
 
-<<<<<<< HEAD
-# mcp_tool = client.tools.add_mcp_tool(
-#     mcp_server_name=mcp_server_name, mcp_tool_name=mcp_tool_name
-# )
-#
-#
-# # Ask the agent to call the tool.
-# response = client.agents.messages.create(
-#     agent_id="agent-eba622c8-4ab9-49db-8c66-20e83f4fb4f7",
-#     messages=[
-#         {"role": "user", "content": "Hello can you echo back this input?"},
-#     ],
-# )
-# for message in response.messages:
-#     print(message)
-=======
-# Ask the agent to call the tool.
-response = client.agents.messages.create(
-    agent_id=agent_id,
-    messages=[
-        {"role": "user", "content": "Search all notion pages for hi"},
-    ],
-)
-for message in response.messages:
-    if message.message_type == "tool_return_message" and message.tool_return:
-        pprint(message.tool_return)
-    else:
-        pprint(message)
->>>>>>> 3c212c8 (Add search MCP)
+    return agent.id
+
+
+async def _action_request(agent_id: int, prompt: str) -> str:
+    # convert prompt to bigger prompt
+    # convert bigger prompt to steps
+    #
+    pass
+
+
+@app.post("/request_action")
+async def request_action(prompt: str) -> str:
+    agent_id = await create_agent()
+    action_task = asyncio.create_task(_action_request(prompt))
+    running_tasks.add(action_task)
+    action_task.add_done_callback(lambda t: running_tasks.remove(t))
+
+    return agent_id
+
+
+async def main():
+    await init_letta()
+
+
+if __name__ == "__main__":
+    pass
