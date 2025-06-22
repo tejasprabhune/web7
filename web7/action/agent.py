@@ -1,19 +1,21 @@
-from letta_client import Letta
+from letta_client import AsyncLetta
+import asyncio
 import ast
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Letta(token=os.getenv("LETTA_API_KEY"))
+client = AsyncLetta(token=os.getenv("LETTA_API_KEY"))
+
 
 async def generate_task_list(agent_id, user_input):
     task_list_response = await client.agents.messages.create(
-                agent_id=agent_id,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"""You are an AI assistant tasked with breaking down a user's prompt into actionable tasks. The goal is to create a list of separate tasks that can be used to query and find appropriate MCP (Model Context Protocol) servers and tools.
+        agent_id=agent_id,
+        messages=[
+            {
+                "role": "user",
+                "content": f"""You are an AI assistant tasked with breaking down a user's prompt into actionable tasks. The goal is to create a list of separate tasks that can be used to query and find appropriate MCP (Model Context Protocol) servers and tools.
 
                             Here is the user's prompt:
                             <user_prompt>
@@ -34,15 +36,26 @@ async def generate_task_list(agent_id, user_input):
                             Output your response as a Python list containing strings, where each string represents a single task. Do not include any explanation or additional text outside of the Python list.
 
                             For example:
-                            ["Task 1", "Task 2", "Task 3"]"""
-                    }
-                ]
-                )
-    task_list = next(m.content for m in task_list_response.messages if m.message_type == "assistant_message")
-    await client.agents.blocks.modify(
-        agent_id=agent_id,
-        block_label="tasks",
-        value = task_list
+                            ["Task 1", "Task 2", "Task 3"]""",
+            }
+        ],
     )
+    task_list = next(
+        m.content
+        for m in task_list_response.messages
+        if m.message_type == "assistant_message"
+    )
+    await client.agents.blocks.modify(
+        agent_id=agent_id, block_label="tasks", value=task_list
+    )
+    print(task_list)
     return ast.literal_eval(task_list)
 
+
+if __name__ == "__main__":
+    asyncio.run(
+        generate_task_list(
+            "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16",
+            "Find Aakarsh's email through Google Drive and send an email to him about tomorrow's event.",
+        )
+    )

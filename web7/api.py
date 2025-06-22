@@ -7,7 +7,7 @@ from enum import Enum
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import Self
-from ..qdrant_vector_search.qdrant_client import QdrantVectorDb
+from .search.qdrant_vector_search.qdrant_client import QdrantVectorDb
 from .models import (
     SearchQuery,
     SearchResponse,
