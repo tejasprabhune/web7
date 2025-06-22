@@ -38,7 +38,7 @@ Solution: We built a semantic search system and populated our vector database wi
 ### Challenge 2: Query Decomposition at Scale
 Issue: Real user requests are messy and multi-faceted ("Check calendar AND email John AND include restaurant info").
 Solution: We developed an intelligent query parsing system using the AI agent itself and structured prompting that breaks complex requests into discrete, executable actions while maintaining context between them.
-### Challenge 4: User Experience During Complex Operations
+### Challenge 3: User Experience During Complex Operations
 Issue: Multi-step AI operations can feel like black boxes to users, especially if the operations take time.
 Solution: Real-time progress visualization with Groq-powered summarization, so users see exactly what's happening and why.
 
