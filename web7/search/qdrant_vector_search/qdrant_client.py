@@ -42,7 +42,7 @@ class QdrantVectorDb:
 
             print("SEARCH RESULT: ", search_result)
             output = [point for point in search_result][0][1]
-            results = [MCPResponse(name=point.payload["name"], transport=TransportType.STREAMABLE_HTTP, url=str(os.getenv(point.payload["name"], image_url=point.payload["image"]))) for point in output]
+            results = [MCPResponse(name=point.payload["name"], transport=TransportType.STREAMABLE_HTTP, url=str(os.getenv(point.payload["name"])), image_url=point.payload["image"]) for point in output]
             
             return SearchResponse(
                 success=True,
