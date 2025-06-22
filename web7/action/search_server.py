@@ -3,22 +3,26 @@ import uvicorn
 
 app = FastAPI(
     title="Search API",
-    description="A simple search API with agent_id, query, and key parameters",
+    description="A simple search API with query, and key parameters",
 )
 
 
 @app.get("/search")
 async def search(
-    agent_id: str = Query(..., description="Agent ID parameter"),
     query: str = Query(..., description="Search query parameter"),
-    key: str = Query(..., description="API key parameter"),
+    k: str = Query(..., description="API key parameter"),
 ):
-    static_response = f"Search completed successfully! Agent ID: {agent_id}, Query: '{query}', Key authenticated."
-
     return {
-        "status": "success",
-        "message": static_response,
-        "parameters": {"agent_id": agent_id, "query": query, "key": key},
+        "success": True,
+        "query": query,
+        "servers": [
+            {
+                "name": "web7_notion",
+                "transport": "streamable-http",
+                "url": "https://mcp.composio.dev/composio/server/2209a624-d742-49c5-9eb0-739d6ff86cff/mcp",
+                "authentication": "",
+            }
+        ],
     }
 
 
@@ -26,7 +30,7 @@ async def search(
 async def root():
     """Root endpoint with basic info"""
     return {
-        "message": "Search API is running! Use /search endpoint with agent_id, query, and key parameters."
+        "message": "Search API is running! Use /search endpoint with query, and key parameters."
     }
 
 
