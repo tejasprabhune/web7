@@ -60,6 +60,8 @@ def get_step_info(agent_id: str, step_id: int):
         "mcp_server": "ya",
         "mcp_server_img_url": "https://cdn.jsdelivr.net/gh/ComposioHQ/open-logos@master/texttopdf.png",
         "status": "updated",
-        "details": "here is a groq log summary"
+        "details": "here is a groq log summary",
+        "timestamp": 1719096000000,
+        "duration": 10000
     }
 

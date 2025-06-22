@@ -37,12 +37,12 @@ export const AnimatedNode: React.FC<AnimatedNodeProps> = ({ data, isConnectable 
         className="w-3 h-3 bg-blue-400 border-2 border-white"
         style={{ opacity: 0.9 }}
       />
-      
+      {data.data.mcp_server_img_url}
       <div className="flex flex-col items-center justify-center w-[140px] h-[140px] bg-white/95 backdrop-blur-sm border-2 border-blue-400/60 rounded-full shadow-lg">
-        {data.data.image && (
+        {data.data.mcp_server_img_url && (
           <img 
-            src={data.data.image} 
-            alt={data.label}
+            src={data.data.mcp_server_img_url} 
+            alt={data.data.mcp_server}
             className="w-15 h-15 rounded-full mb-2 object-cover"
           />
         )}

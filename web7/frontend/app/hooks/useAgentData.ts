@@ -6,6 +6,7 @@ interface AgentData {
   actionPlan: { steps: any[] } | null;
   currentStep: string | null;
   stepResponse: any | null;
+  stepHistory: string[];
   isLoading: boolean;
   error: string | null;
 }
@@ -16,11 +17,16 @@ export function useAgentData() {
     actionPlan: null,
     currentStep: null,
     stepResponse: null,
+    stepHistory: [],
     isLoading: false,
     error: null,
   });
+  const [isPolling, setIsPolling] = useState(false);
 
   const isFetchingActionPlanRef = useRef(false);
+
+  const startPolling = useCallback(() => setIsPolling(true), []);
+  const stopPolling = useCallback(() => setIsPolling(false), []);
 
   const createAgent = useCallback(async (query: string) => {
     setData(prev => ({ ...prev, isLoading: true, error: null }));
@@ -87,6 +93,7 @@ export function useAgentData() {
       const status = result.status !== undefined ? result.status : 
                     result.data?.status !== undefined ? result.data.status : 
                     null;
+      
       return status;
     } catch (error) {
       console.error("Error fetching action plan:", error);
@@ -103,8 +110,8 @@ export function useAgentData() {
 
   const fetchStepResponse = useCallback(async (agentId: string, stepId: string) => {
     if (!agentId || !stepId) return;
-    
-    setData(prev => ({ ...prev, isLoading: true, error: null }));
+
+    // No isLoading change here to keep the UI smooth during polling
     
     try {
       const response = await fetch(get_action_info(agentId, stepId));
@@ -115,20 +122,33 @@ export function useAgentData() {
 
       const result = await response.json();
       
-      setData(prev => ({
-        ...prev,
-        stepResponse: result,
-        isLoading: false
-      }));
+      setData(prev => {
+        // Update the status of the specific step in the action plan
+        const updatedSteps = prev.actionPlan?.steps.map(step => 
+          step.id === stepId ? { ...step, status: result.status } : step
+        );
+        const newActionPlan = prev.actionPlan ? { ...prev.actionPlan, steps: updatedSteps ?? prev.actionPlan.steps } : null;
+
+        // Add the new step details to history if it has details
+        const newStepHistory = result.details ? [...prev.stepHistory, result.details] : prev.stepHistory;
+
+        return {
+          ...prev,
+          actionPlan: newActionPlan,
+          stepResponse: result,
+          stepHistory: newStepHistory,
+        };
+      });
     } catch (error) {
       console.error("Error fetching step response:", error);
+      // Stop polling on error
+      stopPolling();
       setData(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Unknown error',
-        isLoading: false
       }));
     }
-  }, []);
+  }, [stopPolling]);
 
   const resetData = useCallback(() => {
     setData({
@@ -136,10 +156,12 @@ export function useAgentData() {
       actionPlan: null,
       currentStep: null,
       stepResponse: null,
+      stepHistory: [],
       isLoading: false,
       error: null,
     });
-  }, []);
+    stopPolling();
+  }, [stopPolling]);
 
   const setCurrentStepId = useCallback((stepId: string | null) => {
     setData(prev => ({ ...prev, currentStep: stepId }));
@@ -152,8 +174,24 @@ export function useAgentData() {
     }
   }, [data.agentId, data.actionPlan]);
 
+  // This effect handles the polling logic
+  useEffect(() => {
+    if (!isPolling || !data.agentId || !data.currentStep) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      fetchStepResponse(data.agentId!, data.currentStep!);
+    }, 3000); // Polling interval
+
+    return () => clearInterval(intervalId);
+  }, [isPolling, data.agentId, data.currentStep, fetchStepResponse]);
+
   return {
     ...data,
+    isPolling,
+    startPolling,
+    stopPolling,
     createAgent,
     fetchActionPlan,
     fetchStepResponse,

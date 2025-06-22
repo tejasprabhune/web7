@@ -16,14 +16,19 @@ import { MarkovChainFlow } from '@/components/MarkovChain/MarkovChainFlow';
 import { useMarkovChain } from '@/components/MarkovChain/useMarkovChain';
 import { MarkovNode } from '@/components/MarkovChain/types';
 import PlanList from '@/components/planlist';
+import StreamingDetails from "@/components/StreamingDetails";
 
 interface SpotlightProps {
 	agentData: {
 		agentId: string | null;
 		actionPlan: { steps: any[] } | null;
 		currentStep: string | null;
+		stepResponse: any | null;
+		stepHistory: string[];
+		isPolling: boolean;
+		startPolling: () => void;
+		stopPolling: () => void;
 		createAgent: (query: string) => Promise<string | null>;
-		fetchActionPlan: (agentId: string) => Promise<number | null>;
 		resetData: () => void;
 		setCurrentStepId: (id: string | null) => void;
 		isLoading: boolean;
@@ -49,18 +54,13 @@ export function Spotlight({ agentData }: SpotlightProps) {
 	const {
 		nodes,
 		edges,
-		startPolling,
-		stopPolling,
-		isPolling,
+		addNode,
 		clearNodes,
 	} = useMarkovChain({
-		agentId: agentData.agentId,
+		stepResponse: agentData.stepResponse,
 		actionPlan: agentData.actionPlan,
 		currentStepId: agentData.currentStep,
 		onStepComplete: agentData.setCurrentStepId,
-		pollingInterval: 3000,
-		maxNodes: 20,
-		autoStart: false, // Don't start automatically
 	});
 
 	// When the action plan is loaded, set the current step to the first one.
@@ -76,13 +76,22 @@ export function Spotlight({ agentData }: SpotlightProps) {
 	// Start polling only when the action plan and current step are available.
 	useEffect(() => {
 		if (agentData.actionPlan && agentData.currentStep) {
-			startPolling();
+			agentData.startPolling();
 		}
-	}, [agentData.actionPlan, agentData.currentStep, startPolling]);
+	}, [agentData.actionPlan, agentData.currentStep, agentData.startPolling]);
+
+	// Stop polling when all steps are completed by comparing node count to plan length
+	useEffect(() => {
+		if (agentData.actionPlan?.steps && agentData.isPolling) {
+			if (nodes.length >= agentData.actionPlan.steps.length) {
+				agentData.stopPolling();
+			}
+		}
+	}, [nodes.length, agentData.actionPlan, agentData.isPolling, agentData.stopPolling]);
 
 	const resetState = () => {
 		setShowVisualization(false);
-		stopPolling();
+		agentData.stopPolling();
 		clearNodes();
 		setSearch("");
 		setOpen(false);
@@ -100,11 +109,6 @@ export function Spotlight({ agentData }: SpotlightProps) {
 			resetState();
 		}
 	};
-
-	// Simulate terminal state after 15 nodes (hardcoded for demo)
-	if (nodes.length >= 15 && isPolling) {
-		stopPolling();
-	}
 
 	const handleOpenChange = (isOpen: boolean) => {
 		if (!isOpen) {
@@ -148,15 +152,20 @@ export function Spotlight({ agentData }: SpotlightProps) {
 					// Visualization interface
 					<ReactFlowProvider>
 						<div className="flex h-[85vh] w-full bg-white rounded-lg overflow-hidden">
-							{/* Plan List */}
-							<div className="w-[20%] flex-shrink-0 bg-white">
-								<PlanList 
-									isMarkovActive={isPolling || nodes.length > 0}
-									nodeCount={nodes.length}
-									agentId={agentData.agentId}
-									actionPlan={agentData.actionPlan}
-									agentData={agentData}
-								/>
+							{/* Left Panel */}
+							<div className="w-[25%] flex-shrink-0 bg-white flex flex-col border-r border-gray-200">
+								<div className="h-[50%]">
+									<PlanList 
+										isMarkovActive={agentData.isPolling || nodes.length > 0}
+										nodeCount={nodes.length}
+										agentId={agentData.agentId}
+										actionPlan={agentData.actionPlan}
+										agentData={agentData}
+									/>
+								</div>
+								<div className="h-[50%]">
+									<StreamingDetails stepHistory={agentData.stepHistory} isPolling={agentData.isPolling} />
+								</div>
 							</div>
 							
 							{/* Markov Chain */}

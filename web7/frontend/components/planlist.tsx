@@ -19,7 +19,6 @@ interface PlanListProps {
   agentData?: {
     agentId: string | null;
     actionPlan: { steps: any[] } | null;
-    fetchActionPlan: (agentId: string) => Promise<number | null>;
     isLoading: boolean;
     error: string | null;
   };
@@ -28,52 +27,6 @@ interface PlanListProps {
 export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentId, actionPlan, agentData }: PlanListProps) {
   const [isOpen, setIsOpen] = useState(true); // Default to open in side-by-side mode
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [isPolling, setIsPolling] = useState(false);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  const isPollingRef = useRef(false);
-
-  // Poll for action plan updates when agent is active
-  useEffect(() => {
-    if (!agentId || !agentData || isPollingRef.current) return;
-
-    // Clear any existing polling
-    if (pollingRef.current) {
-      clearTimeout(pollingRef.current);
-      pollingRef.current = null;
-    }
-
-    isPollingRef.current = true;
-    setIsPolling(true);
-    const pollInterval = 10000; // Poll every 10 seconds (increased)
-
-    const pollForUpdates = async () => {
-      if (!isPollingRef.current) return;
-      
-      const status = await agentData.fetchActionPlan(agentId);
-      
-      // Stop polling if status is 0 (complete) or if there was an error
-      if (status === 0 || status === null) {
-        console.log('Action plan complete or error occurred, stopping polling');
-        isPollingRef.current = false;
-        setIsPolling(false);
-        return;
-      }
-      
-      pollingRef.current = setTimeout(pollForUpdates, pollInterval);
-    };
-
-    // Start polling
-    pollForUpdates();
-
-    return () => {
-      isPollingRef.current = false;
-      setIsPolling(false);
-      if (pollingRef.current) {
-        clearTimeout(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, [agentId]); // Only depend on agentId
 
   // Auto-progress tasks based on Markov chain activity
   useEffect(() => {
@@ -120,24 +73,28 @@ export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentI
     );
   };
 
-  const getStatusIcon = (status: TaskStatus) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case "completed":
+      case "updated":
         return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case "in-progress":
+      case "started":
         return <Clock className="w-5 h-5 text-yellow-600" />;
-      case "not-started":
+      case "not_started":
+        return <Circle className="w-5 h-5 text-gray-400" />;
+      default:
         return <Circle className="w-5 h-5 text-gray-400" />;
     }
   };
 
-  const getStatusColor = (status: TaskStatus) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case "completed":
+      case "updated":
         return "text-green-600";
-      case "in-progress":
+      case "started":
         return "text-yellow-600";
-      case "not-started":
+      case "not_started":
+        return "text-gray-400";
+      default:
         return "text-gray-400";
     }
   };
@@ -156,21 +113,11 @@ export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentI
           </button>
         </div>
         <p className="text-blue-100 text-xs mt-1">
-          {tasks.filter(t => t.status === "completed").length} of {tasks.length} completed
+          {actionPlan?.steps?.filter(t => t.status === "updated").length} of {agentData?.actionPlan?.steps.length} completed
         </p>
-        {agentData?.isLoading && (
+        {agentData?.isLoading && !agentData.actionPlan && (
           <p className="text-blue-100 text-xs mt-1">
             Loading action plan...
-          </p>
-        )}
-        {isPolling && (
-          <p className="text-blue-100 text-xs mt-1">
-            🔄 Polling for updates...
-          </p>
-        )}
-        {!isPolling && agentId && (
-          <p className="text-green-200 text-xs mt-1">
-            ✅ Action plan complete
           </p>
         )}
         {agentData?.error && (
@@ -180,7 +127,7 @@ export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentI
         )}
         {isMarkovActive && (
           <p className="text-blue-100 text-xs mt-1">
-            Nodes: {nodeCount}/15
+            Nodes: {nodeCount}/{agentData?.actionPlan?.steps.length}
           </p>
         )}
       </div>
@@ -211,7 +158,8 @@ export default function PlanList({ isMarkovActive = false, nodeCount = 0, agentI
       {isOpen && (
         <div className="border-t border-gray-100 px-3 py-2 bg-gray-50">
           <div className="flex justify-between text-xs text-gray-500">
-            <span>{tasks.filter(t => t.status === "in-progress").length} in progress</span>
+            <span>Status</span>
+            <span>{actionPlan?.steps?.filter(t => t.status === "started").length} in progress</span>
           </div>
         </div>
       )}
