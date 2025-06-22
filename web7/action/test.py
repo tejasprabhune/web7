@@ -130,7 +130,7 @@ print(agent_id)
 task_list = [
     # "Find the Notion User's Personal Information",
     # "Use this Notion User's Personal Information to create a nice story",
-    "Send an email to prabhune@berkeley.edu saying how this was automatically sent from an LLM",
+    "Send an email to charles@letta.com saying thanking him for his help debugging our agents. Sign it off saying `Sent with love from Letta with web7`",
 ]
 # task_list = ["Find the Notion User's Personal Information"]
 for task in task_list:
