@@ -127,19 +127,22 @@ Now, please proceed with the task using the provided tools and following the ins
         await client.agents.blocks.attach(agent_id=session.agent_id, block_id=block.id)
 
     system_prompt = """
-    You will be given a thought process or results from an AI model. Your task is to summarize this thought process in five words or less. Here is the thought process:
-
-    <thought_process>
-    {{THOUGHT_PROCESS}}
-    </thought_process>
-
+    You will be given a thought process or results from an AI model. Your task is to summarize this thought process in five words or less. 
     Carefully analyze the provided thought process. Identify the key actions, decisions, or steps that the AI model took to complete its task. 
 
     Create a concise summary that captures the essence of the thought process in no more than 10 words. This summary should give a clear, high-level understanding of what the AI did.
 
+    """
+
+    user_prompt = f"""
+    Here is the thought process:
+
+    <thought_process>
+    {str(messages)}
+    </thought_process>
+
     Provide your ten-word (or less) summary. Do not include any additional explanation or justification.
     """
-    user_prompt = ""
     details = await groq_complete(groq, system_prompt, user_prompt)
 
     session.add_step(
@@ -147,7 +150,7 @@ Now, please proceed with the task using the provided tools and following the ins
         mcp_server="",
         mcp_server_img_url=mcp_server_img_url,
         status=StepStatus.UPDATED,
-        details=
+        details=details,
     )
 
 
