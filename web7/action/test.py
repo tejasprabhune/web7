@@ -1,8 +1,11 @@
 from letta_client import Letta
 import ast
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
-client = Letta(token="sk-let-ZWUwMzAxNDYtYmFkZC00ZTA1LWJlMmUtMDM1ZmI3NTJjNGIyOjcwYjFlNDQ4LWU3MzItNGY2Ny04MjY4LTY2ZDVkMDU1YTA5NA==")
+client = Letta(token=os.getenv("LETTA_API_KEY"))
 
 def intialize_agent(tools_list = ["web_search", "run_code"]):
     agent_state = client.agents.create(
