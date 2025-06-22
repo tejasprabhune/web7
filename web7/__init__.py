@@ -1,5 +1,10 @@
 from letta_client import Letta
-client = Letta(token="LETTA_API_KEY")
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = Letta(token=os.getenv("LETTA_API_KEY"))
 agent_state = client.agents.create(
     model="openai/gpt-4.1",
     embedding="openai/text-embedding-3-small",
