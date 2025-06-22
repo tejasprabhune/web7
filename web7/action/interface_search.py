@@ -33,7 +33,7 @@ class McpServer:
     name: str
     transport: str
     url: str
-    img_url: str
+    image_url: str
     authentication: str
 
 
@@ -135,7 +135,7 @@ async def _mcp_search(agent_id: str, query: str, k: int) -> int:
     for server in mcp_response.servers:
         await add_mcp_server(server.name, server.url)
         await attach_tools(agent_id, server.name)
-        mcp_server_img_url = server.img_url
+        mcp_server_img_url = server.image_url
 
     return mcp_server_img_url
 

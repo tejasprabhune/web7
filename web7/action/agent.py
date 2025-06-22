@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 
 from ..llm.groq import groq_complete, init_groq
-from ..api import WorkflowSession, StepStatus
+from ..models import WorkflowSession, StepStatus
 from .interface_search import detach_tools, mcp_search
 
 load_dotenv()
@@ -166,9 +166,32 @@ Now, please proceed with the task using the provided tools and following the ins
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def intialize_agent():
+    agent_state = await client.agents.create(
+        model="anthropic/claude-3-5-sonnet-20241022",
+        embedding="openai/text-embedding-3-small",
+        memory_blocks=[
+            {
+                "label": "human",
+                "value": "",
+            },
+            {
+                "label": "persona",
+                "value": "My name is Sam, the all-knowing sentient AI.",
+            },
+        ],
+    )
+    return agent_state
+
+
 async def main():
-    agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
-    prompt = "Search through Notion and look for the email address of the person wearing a green shirt. Then, write them an email congratulating them for winning the Berkeley AI hackathon."
+    agent = await intialize_agent()
+    # agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
+    agent_id = agent.id
+    prompt = "Send a hello message somewhere in Slack"
+
+    session = WorkflowSession(agent_id, prompt)
+
     task_list = await generate_task_list(
         agent_id,
         prompt,
@@ -179,4 +202,4 @@ async def main():
     # print()
 
     for i, task in enumerate(task_list):
-        await accomplish_task(agent_id, task, i)
+        await accomplish_task(session, task, i)
