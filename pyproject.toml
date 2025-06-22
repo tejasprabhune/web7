@@ -19,4 +19,5 @@ dependencies = [
     "pyngrok>=5.1.0",
     "sentence-transformers>=4.1.0",
     "groq>=0.28.0",
+    "click>=8.1.8",
 ]
