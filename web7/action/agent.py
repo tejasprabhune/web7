@@ -4,18 +4,21 @@ import ast
 import os
 from dotenv import load_dotenv
 
+from .interface_search import detach_tools, mcp_search
+
 load_dotenv()
 
 client = AsyncLetta(token=os.getenv("LETTA_API_KEY"))
 
 
 async def generate_task_list(agent_id, user_input):
-    task_list_response = await client.agents.messages.create(
+    await detach_tools(agent_id)
+    stream = client.agents.messages.create_stream(
         agent_id=agent_id,
         messages=[
             {
                 "role": "user",
-                "content": f"""You are an AI assistant tasked with breaking down a user's prompt into actionable tasks. The goal is to create a list of separate tasks that can be used to query and find appropriate MCP (Model Context Protocol) servers and tools.
+                "content": f"""You are an AI assistant tasked with breaking down a user's prompt into actionable tasks. The goal is to create a list of separate tasks that can be used to query and find appropriate MCP (Model Context Protocol) servers and tools. DO NOT USE ANY TOOL CALLS IN THIS PART.
 
                             Here is the user's prompt:
                             <user_prompt>
@@ -33,100 +36,104 @@ async def generate_task_list(agent_id, user_input):
                             4. Avoid overlapping or redundant tasks.
                             5. Ensure that the sequence of tasks, if followed, would fulfill the user's request.
 
-                            Output your response as a Python list containing strings, where each string represents a single task. Do not include any explanation or additional text outside of the Python list.
+                            Output your response as a Python list containing strings, where each string represents a single task. Do not include any explanation or additional text outside of the Python list. REMINDER: DO NOT USE ANY TOOL CALLS IN THIS PART.
 
                             For example:
                             ["Task 1", "Task 2", "Task 3"]""",
             }
         ],
     )
-    task_list = next(
-        m.content
-        for m in task_list_response.messages
-        if m.message_type == "assistant_message"
-    )
+
+    task_list = ""
+    async for m in stream:
+        print(m)
+        if m.message_type == "assistant_message":
+            task_list = m.content
+
     await client.agents.blocks.modify(
         agent_id=agent_id, block_label="tasks", value=task_list
     )
-    print(task_list)
     return ast.literal_eval(task_list)
 
-def accomplish_task(agent_id, task, task_number):
-    response = client.agents.messages.create(
+
+async def accomplish_task(agent_id, task, task_number):
+    await detach_tools(agent_id)
+    response = await mcp_search(agent_id, task, k=3)
+    print(response)
+    stream = client.agents.messages.create_stream(
         agent_id=agent_id,
         messages=[
             {
                 "role": "user",
-                "content": f"""You are an AI assistant tasked with analyzing a given task, selecting the most appropriate Model Context Protocol (MCP) to complete it, and then executing the task using that MCP. Your goal is to efficiently complete the task while adhering to the following instructions.
+                "content": f"""
+You are an AI assistant equipped with various tools to help you complete specific tasks. Your goal is to execute the given task using all available tools efficiently and effectively.
 
-                    First, you will be provided with a task description and a list of available MCPs. Here is the task you need to complete:
+Here is the task you need to complete:
+<task>
+{task}
+</task>
 
-                    <task>
-                    {task}
-                    </task>
+Process for completing the task:
+1. Analyze the task and determine which tools you need to use.
+2. Use the tools in a logical order to gather necessary information or perform required actions.
+3. If you encounter any errors or unexpected results, reassess your approach and try alternative methods.
+4. Continue using tools and processing results until you have enough information to complete the task.
 
-                    In your analysis, consider the following:
-                    1. What is the main objective of the task?
-                    2. What type of information or actions are needed to complete the task?
+Before providing your final answer, use <scratchpad> tags to outline your thought process and plan your approach. This will help you organize your ideas and ensure you're using the tools effectively.
 
-                    You should use this analysis to trigger the search tool that you have available to you and retrieve all of the MCPs that you want to use in the future. These MCPs will automatically be injected in your agent, which will provide you with future tools that you can use after this search function has been called.
+When you're ready to give your final answer, please provide it in the following format:
+<answer>
+[Your detailed response to the task, including any relevant information gathered from the tools]
+</answer>
 
-                    After the search, select the single most appropriate MCP that you believe will be most effective in completing the task. While you should only use one MCP to complete the action, remember that you can use any number of tool calls within that MCP as needed.
+Reminders and best practices:
+- Only use the tools provided to you. Do not assume you have access to any other capabilities.
+- If a tool returns an error, try to understand why and adjust your approach accordingly.
+- Be thorough in your analysis and use of the tools to ensure you're addressing all aspects of the task.
+- If you're unsure about how to proceed at any point, review the task description and available tools to see if you've missed anything.
+- Always strive for accuracy and completeness in your final answer.
 
-                    Once you have selected the MCP, explain your reasoning for choosing it. Then, describe how you plan to use this MCP to complete the task. Be specific about which tool calls you anticipate making and in what order.
-
-                    Finally, execute the task using the selected MCP. As you work through the task, make any necessary tool calls within the MCP. If you encounter any difficulties or need to adjust your approach, explain your reasoning and the changes you're making.
-
-                    After you have executed the search function, present your work in the following format with the resulting MCPs:
-
-                    <analysis>
-                    [Your analysis of the task and available MCPs]
-                    </analysis>
-
-                    <selected_mcp>
-                    [Name of the selected MCP]
-                    </selected_mcp>
-
-                    <reasoning>
-                    [Your reasoning for selecting this MCP]
-                    </reasoning>
-
-                    <execution_plan>
-                    [Your plan for using the MCP to complete the task]
-                    </execution_plan>
-
-                    <task_execution>
-                    [The actual execution of the task, including any tool calls and your thought process]
-                    </task_execution>
-
-                    <result>
-                    [The final result or output of the completed task]
-                    </result>
-
-                    Remember to be thorough in your analysis, clear in your reasoning, and efficient in your execution. If you encounter any ambiguities or need more information to complete the task, state this clearly in your response.
-            """,
+Now, please proceed with the task using the provided tools and following the instructions above.
+                """,
             }
         ],
     )
-    for message in response.messages:
+
+    messages = []
+    async for message in stream:
+        messages.append(message)
         print(message)
 
     if f"task {task_number}" in [
-        b.label for b in client.agents.blocks.list(agent_id=agent_id)
+        b.label for b in await client.agents.blocks.list(agent_id=agent_id)
     ]:
-        client.agents.blocks.modify(
+        await client.agents.blocks.modify(
             agent_id=agent_id,
             block_label=f"task {task_number}",
-            value=str(response.messages),
+            value=str(messages),
         )
     else:
-        block = client.blocks.create(
+        block = await client.blocks.create(
             label=f"task {task_number}",
             description="A block to store information {task}",
-            value=str(response.messages),
+            value=str(messages),
             limit=40000,
         )
         print("new block created")
-        client.agents.blocks.attach(agent_id=agent_id, block_id=block.id)
+        await client.agents.blocks.attach(agent_id=agent_id, block_id=block.id)
 
-    
+
+async def main():
+    agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
+    prompt = "Search through Notion and look for the email address of the person wearing a green shirt. Then, write them an email congratulating them for winning the Berkeley AI hackathon."
+    task_list = await generate_task_list(
+        agent_id,
+        prompt,
+    )
+    print(task_list)
+
+    # print(task)
+    # print()
+
+    for i, task in enumerate(task_list):
+        await accomplish_task(agent_id, task, i)

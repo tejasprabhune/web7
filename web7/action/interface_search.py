@@ -25,7 +25,6 @@ system_tools = [
     "tool-9d63519f-409b-4a3b-bd07-36115c93d3e9",  # run_code
     "tool-ac00b505-d12d-4c4c-8e2b-98cf24b41cd1",  # archival_memory_search
     "tool-ee39ac08-1c08-4dcf-9b0d-c3f6e086c27d",  # web_search
-    "",  # mcp_search
 ]
 
 
@@ -51,12 +50,14 @@ class McpResponse:
         )
 
 
-async def detach_tools(agent_id: int) -> None:
+async def detach_tools(agent_id: str) -> None:
     attached_tools: list[Tool] = await client.agents.tools.list(agent_id=agent_id)
 
     detach_tasks = []
     for attached_tool in attached_tools:
-        if attached_tool.id not in system_tools or attached_tool.name != "mcp_search":
+        if (
+            attached_tool.id not in system_tools
+        ):  # and attached_tool.name != "mcp_search":
             print("detaching:", attached_tool.name)
             detach_tasks.append(
                 asyncio.create_task(
@@ -66,10 +67,10 @@ async def detach_tools(agent_id: int) -> None:
                 )
             )
 
-    await asyncio.gather(*detach_tasks)
+    await asyncio.gather(*detach_tasks, return_exceptions=True)
 
 
-async def add_tool(agent_id: int, mcp_server_name: str, mcp_tool_name: str):
+async def add_tool(agent_id: str, mcp_server_name: str, mcp_tool_name: str):
     tool = await client.tools.add_mcp_tool(
         mcp_server_name=mcp_server_name,
         mcp_tool_name=mcp_tool_name,
@@ -77,7 +78,7 @@ async def add_tool(agent_id: int, mcp_server_name: str, mcp_tool_name: str):
     await client.agents.tools.attach(agent_id=agent_id, tool_id=tool.id)
 
 
-async def attach_tools(agent_id: int, mcp_server_name: str):
+async def attach_tools(agent_id: str, mcp_server_name: str):
     available_tools: list[Tool] = await client.tools.list_mcp_tools_by_server(
         mcp_server_name
     )
@@ -91,9 +92,7 @@ async def attach_tools(agent_id: int, mcp_server_name: str):
             )
         )
 
-    await client.agents.messages.create
-
-    await asyncio.gather(*attach_tasks)
+    await asyncio.gather(*attach_tasks, return_exceptions=True)
 
 
 async def add_mcp_server(mcp_server_name: str, mcp_server_url: str):
@@ -109,42 +108,39 @@ async def add_mcp_server(mcp_server_name: str, mcp_server_url: str):
         )
 
 
-async def _mcp_search(agent_id: int, query: str, k: int) -> int:
+async def _mcp_search(agent_id: str, query: str, k: int) -> int:
     """
-    /search
+    Retrieve MCP servers to inject into this agent for a given query.
+    For example, if I want to send an email, I will retrieve the Gmail MCP servers
+    and inject it into this agent ID for you.
 
-    q: str - prompt query for searching relevant MCP servers
+    agent_id: letta agent id for
+    query: str - prompt query for searching relevant MCP servers
     k: int - number of MCP servers to return
-
-    Returns:
-    {
-        "success": bool,
-        "query": str,
-        "servers": [
-            "<mcp-name>": {
-                "transport": "streamable-http" | "sse" | "stdio",
-                "url": str,
-                "authentication": str
-            }
-        ]
-    }
     """
     response = requests.get(
         url=f"{os.getenv('SEARCH_ENDPOINT')}/search", params={"query": query, "k": k}
     )
+
+    print(response.json())
 
     mcp_response: McpResponse = McpResponse.from_dict(response.json())
 
     await detach_tools(agent_id)
 
     for server in mcp_response.servers:
-        await add_mcp_server(agent_id, server.name, server.url)
+        await add_mcp_server(server.name, server.url)
         await attach_tools(agent_id, server.name)
 
 
 @mcp.tool()
-def mcp_search(agent_id: int, query: str, k: int) -> int:
-    asyncio.run(_mcp_search(agent_id, query, k))
+async def mcp_search(agent_id: str, query: str, k: int) -> int:
+    print("agent_id:", agent_id)
+    print("query:", query)
+    print("k:", k)
+    await _mcp_search(agent_id, query, k)
+
+    return {"status": "success"}
 
 
 async def main():
