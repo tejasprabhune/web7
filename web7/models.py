@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Self
 from enum import Enum
 
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+
 
 class UserQueryRequest(BaseModel):
     query: str
@@ -115,7 +117,7 @@ class Step:
 
 
 class WorkflowSession:
-    def __init__(self, agent_id: str, query: str):
+    def __init__(self, agent_id: str, query: str, qdrant_client):
         self.agent_id = agent_id
         self.query = query
         self.status = WorkflowStatus.STARTED
@@ -126,6 +128,7 @@ class WorkflowSession:
         self.updated_at = datetime.now()
         self.progress_percentage = 0
         self.error_message = None
+        self._qdrant = qdrant_client
 
     def add_step(
         self,

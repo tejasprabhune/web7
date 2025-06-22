@@ -188,7 +188,7 @@ async def main():
     agent = await intialize_agent()
     # agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
     agent_id = agent.id
-    prompt = "Send a hello message somewhere in Slack"
+    prompt = "Make me a notion page"
 
     session = WorkflowSession(agent_id, prompt)
 

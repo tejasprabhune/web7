@@ -7,8 +7,9 @@ from typing import Self
 
 from letta_client import AsyncLetta, StreamableHttpServerConfig, Tool, SseServerConfig
 
-
 from mcp.server.fastmcp import FastMCP
+
+from ..search.vector_service import search_vectors
 
 dotenv.load_dotenv()
 
@@ -121,10 +122,13 @@ async def _mcp_search(agent_id: str, query: str, k: int) -> int:
     query: str - prompt query for searching relevant MCP servers
     k: int - number of MCP servers to return
     """
-    response = requests.get(
-        url=f"{os.getenv('SEARCH_ENDPOINT')}/search", params={"query": query, "k": k}
-    )
+    # response = requests.get(
+    #     url=f"{os.getenv('SEARCH_ENDPOINT')}/search", params={"query": query, "k": k}
+    # )
 
+    # print(response.json())
+
+    response = await search_vectors(query, k)
     print(response.json())
 
     mcp_response: McpResponse = McpResponse.from_dict(response.json())

@@ -5,3 +5,4 @@ servers/
 uv.lock
 *egg-info
 *__pycache__/
+pnpm-lock.yaml

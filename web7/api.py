@@ -19,6 +19,7 @@ from .models import (
     Step,
     StepStatus,
 )
+from .search.vector_service import search_vectors
 from datetime import datetime
 import uuid
 import asyncio
@@ -35,7 +36,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-origins = ["http://localhost:3000"]
+origins = ["http://localhost:3000", "http://localhost:3001"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,6 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+vector_service = QdrantVectorDb()
 
 workflow_sessions: Dict[str, WorkflowSession] = {}
 
@@ -82,16 +84,17 @@ async def create_agent(tool_id: int):
 async def submit_query(request: UserQueryRequest, background_tasks: BackgroundTasks):
     """Submit query and start processing in background"""
     # TODO: remove
-    return {
-        "agent_id": "hello",
-        "status": 0,
-    }
+    # return {
+    #     "agent_id": "hello",
+    #     "status": 0,
+    # }
 
-    agent_id = await create_agent()
-    session = WorkflowSession(agent_id, request.query)
+    # agent_id = await create_agent()
+    agent_id = "agent-4d880512-8969-4ef3-9b18-a42bddb4dd16"
+    session = WorkflowSession(agent_id, request.query, vector_service)
     workflow_sessions[agent_id] = session
 
-    background_tasks.add_task(process_workflow, agent_id, request.query)
+    background_tasks.add_task(process_workflow, agent_id)
 
     return {
         "agent_id": agent_id,
@@ -104,7 +107,7 @@ async def submit_query_with_id(
     request: UserQueryRequestWithId, background_tasks: BackgroundTasks
 ):
     """Submit query and start processing in background"""
-    session = WorkflowSession(request.agent_id, request.query)
+    session = WorkflowSession(request.agent_id, request.query, vector_service)
     workflow_sessions[request.agent_id] = session
 
     background_tasks.add_task(process_workflow, request.agent_id, request.query)
@@ -119,8 +122,8 @@ async def submit_query_with_id(
 @app.get("/workflow/{agent_id}")
 async def get_workflow_status(agent_id: str):
     # TODO: remove
-    session = WorkflowSession("hello", "query")
-    return session.to_dict()
+    # session = WorkflowSession("hello", "query")
+    # return session.to_dict()
 
     """Get current workflow status - Frontend polls this endpoint"""
     if agent_id not in workflow_sessions:
@@ -170,15 +173,17 @@ async def process_workflow(agent_id: str):
 @app.get("/workflow/{agent_id}/steps")
 def get_steps(agent_id: str):
     # TODO: remove
-    return {
-        "status": 0,
-        "steps": [{"name": "hi", "id": "0"}, {"name": "bye", "id": "1"}],
-    }
+    # return {
+    #     "status": 0,
+    #     "steps": [{"name": "hi", "id": "0"}, {"name": "bye", "id": "1"}],
+    # }
 
     if agent_id not in workflow_sessions:
         raise HTTPException(status_code=404, detail="Agent not found")
 
     session = workflow_sessions[agent_id]
+
+    print(session.to_dict())
 
     if not session.steps:
         return {"status": 1}
@@ -190,16 +195,30 @@ def get_steps(agent_id: str):
 
 
 @app.get("/workflow/{agent_id}/{step_id}")
-def get_step_info(agent_id: str, step_id: int):
-    step = Step(
-        step_id="0",
-        action="hi",
-        mcp_server="ya",
-        mcp_server_img_url="",
-        status="updated",
-        details="here is a groq log summary",
-    )
-    return step.to_dict()
+def get_step_info(agent_id: str, step_id: str):
+    # steps = [
+    #     Step(
+    #         step_id="0",
+    #         action="hi",
+    #         mcp_server="ya",
+    #         mcp_server_img_url="",
+    #         status=StepStatus.UPDATED,
+    #         details="here is a groq log summary",
+    #         timestamp=datetime.now(),
+    #         duration=0,
+    #     ),
+    #     Step(
+    #         step_id="1",
+    #         action="hi",
+    #         mcp_server="ya",
+    #         mcp_server_img_url="",
+    #         status=StepStatus.UPDATED,
+    #         details="here is a groq log summary",
+    #         timestamp=datetime.now(),
+    #         duration=0,
+    #     ),
+    # ]
+    # return steps[int(step_id)].to_dict()
 
     if agent_id not in workflow_sessions:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -221,9 +240,6 @@ def get_step_info(agent_id: str, step_id: int):
     return matched_step.to_dict()
 
 
-vector_service = QdrantVectorDb()
-
-
 # GET endpoint for simple queries
 @app.get("/search", response_model=SearchResponse)
 async def search_vectors_get(
@@ -235,12 +251,7 @@ async def search_vectors_get(
     """
     GET endpoint for vector search.
     """
-    search_query = SearchQuery(query=query, k=k)
-    try:
-        result = await vector_service.search(search_query=search_query)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+    return await search_vectors(query, k)
 
 
 async def main():
