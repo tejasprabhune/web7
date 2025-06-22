@@ -19,7 +19,7 @@ import uuid
 import asyncio
 import time
 from letta_client import LlmConfig, AsyncLetta, StreamableHttpServerConfig
-from action.agent import generate_task_list
+from web7.action.agent import generate_task_list, accomplish_task
 
 load_dotenv()
 
@@ -244,16 +244,13 @@ async def process_workflow(session_id: str):
 
         for i, step_config in enumerate(workflow_steps):
             # Add step to session
-            
-
+            response = await accomplish_task(session.agent_id, step_config, i)
 
             step = session.add_step(
-                action=step_config.action,
-                mcp_server=step_config["mcp_server"],
-                status="started",
-                details={
-                    "description": f"Starting {step_config['action'].replace('_', ' ')}"
-                },
+                action=step_config,
+                mcp_server="",
+                status=StepStatus.STARTED,
+                details=response,
             )
 
             session.current_step = i

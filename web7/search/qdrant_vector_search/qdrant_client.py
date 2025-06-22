@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 from dataclasses import dataclass
 from typing import List, Optional
-from ..database_server.models import SearchResponse, MCPResponse, TransportType, SearchQuery
+from web7.models import SearchResponse, MCPResponse, TransportType, SearchQuery
 
 load_dotenv() 
 
@@ -25,16 +25,24 @@ class QdrantVectorDb:
         try:
             query_vector = self.encoder.encode(query).tolist()
 
-            search_result = await self.client.search(
+            search_result = await self.client.query_points(
                 collection_name=self.mcp_collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=k,
-                with_payload=True
+                with_payload=True,
+                # query_filter=models.Filter(
+                #     must=[
+                #             models.FieldCondition(
+                #                 key="name",
+                #                 match=models.MatchAny(any=["Gmail", "Notion"])
+                #             )
+                #     ]
+                # )
             )
 
             print("SEARCH RESULT: ", search_result)
-            
-            results = [MCPResponse(name=point.payload["name"], transport=TransportType.STREAMABLE_HTTP, url=point.payload["mcp_server_link"]) for point in search_result]
+            output = [point for point in search_result][0][1]
+            results = [MCPResponse(name=point.payload["name"], transport=TransportType.STREAMABLE_HTTP, url=str(os.getenv(point.payload["name"]))) for point in output]
             
             return SearchResponse(
                 success=True,
