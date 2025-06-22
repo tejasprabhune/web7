@@ -28,7 +28,20 @@ mcp_tools = client.tools.list_mcp_tools_by_server(
     mcp_server_name=mcp_server_name,
 )
 for tool in mcp_tools:
-    pprint(tool)
+    pprint(tool.name)
+    print()
+
+mcp_tool = client.tools.add_mcp_tool(
+    mcp_server_name=mcp_server_name, mcp_tool_name=mcp_tool_name
+)
+
+agent_id = "agent-eba622c8-4ab9-49db-8c66-20e83f4fb4f7"
+client.agents.tools.attach(agent_id=agent_id, tool_id=mcp_tool.id)
+
+mcp_tools = client.agents.tools.list(agent_id=agent_id)
+
+for tool in mcp_tools:
+    pprint(tool.name)
     print()
 
 # mcp_tool = client.tools.add_mcp_tool(
